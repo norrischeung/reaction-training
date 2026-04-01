@@ -313,7 +313,7 @@ export default function Game() {
           <div className="absolute inset-y-0 left-1/2 w-px bg-white/10" />
 
           {/* Center content */}
-          <div className="relative flex flex-col items-center gap-4">
+          <div className="relative flex-1 flex flex-col items-center justify-center gap-4 min-h-0">
             {gameState === "idle" && (
               <div className="text-center">
                 {settings.randomTime && (
