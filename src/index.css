@@ -73,3 +73,26 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+html, body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-user-select: none; /* Prevents text highlighting while tapping */
+}
+
+/* This locks the screen and ensures the game fits perfectly */
+html, body, #root {
+  height: 100%; /* Use the Dynamic Viewport Height 100dvh*/
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Stops the scrolling completely */
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+/* Make sure your main container also respects this height */
+.min-h-screen {
+  min-height: 100dvh !important;
+}
