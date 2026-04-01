@@ -134,7 +134,7 @@ export default function Game() {
   const rightActive = gameState === "result" && isRight;
 
   return (
-    <div className="h-[100dvh] w-screen flex flex-col bg-gray-950 text-white select-none overflow-hidden p-4">
+    <div className="h-[100dvh] w-screen flex flex-col bg-gray-950 text-white select-none overflow-hidden" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 sm:py-4 z-10 relative">
         <h1 className="text-base sm:text-xl font-bold tracking-wide text-white/80">
