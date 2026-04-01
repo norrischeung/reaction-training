@@ -83,7 +83,7 @@ html, body {
 
 /* This locks the screen and ensures the game fits perfectly */
 html, body, #root {
-  height: 100dvh; /* Use the Dynamic Viewport Height */
+  height: 100%; /* Use the Dynamic Viewport Height 100dvh*/
   width: 100vw;
   margin: 0;
   padding: 0;
