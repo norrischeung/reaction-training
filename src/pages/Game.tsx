@@ -177,7 +177,7 @@ export default function Game() {
 
   // Bluetooth-related states (for future use)
   const [isConnected, setIsConnected] = useState(false);
-  const [bluetoothDevice, setBluetoothDevice] = useState<BluetoothDevice | null>(null);
+  const [bluetoothDevice, setBluetoothDevice] = useState<any>(null);
   
 
   // Function to connect to the Bluetooth sensor
@@ -342,9 +342,6 @@ export default function Game() {
             startGame();
           }
         }, 1000);
-      }
-      else {
-        const endTime = Date.now();
       }
     }
   };
