@@ -218,29 +218,36 @@ export default function Game() {
 
   //Remote Receiver
   const [myPeerId, setMyPeerId] = useState<string>("");
-  const [targetPeerId, setTargetPeerId] = useState<string>("");
+  //const [targetPeerId, setTargetPeerId] = useState<string>("");
   const [connection, setConnection] = useState<DataConnection | null>(null);
   const peerRef = useRef<Peer | null>(null);
 
+  // 只保留接收連線的 useEffect
   useEffect(() => {
-    // 1. 初始化 Peer (這會給你一個隨機 ID)
-    const peer = new Peer({ debug: 2 });
+    const peer = new Peer({
+      config: {
+        'iceServers': [
+          { urls: 'stun:stun.l.google.com:19302' }, // 用 Google 嘅免費 STUN server 幫手穿透
+        ]
+      }
+    });
     peerRef.current = peer;
 
-    peer.on('open', (id) => setMyPeerId(id)); // Enhance: QR code 
+    peer.on('open', (id) => setMyPeerId(id));
 
-    // 2. 監聽別人的連接
     peer.on('connection', (conn) => {
       setConnection(conn);
-      console.log("👾 Remote device joined!");
+      console.log("👾 Remote joined!");
+
+      conn.on('open', () => {
+        console.log("📡 Sending ACK to phone...");
+        conn.send("SERVER_READY"); 
+      });
 
       conn.on('data', (data) => {
         if (data === 'HIT') {
-          // 使用 functional update 確保拎到最新 state
           setGameState(prev => {
-            if (prev === "reaction") {
-              stopTimerRef.current();
-            }
+            if (prev === "reaction") stopTimerRef.current();
             return prev;
           });
         }
@@ -250,26 +257,36 @@ export default function Game() {
     return () => peer.destroy();
   }, []);
 
-  // 2. 副機端：主動連線到主機
+  /* 2. 副機端：主動連線到主機
   const connectToHost = () => {
     const cleanId = targetPeerId.trim();
     if (!peerRef.current || !cleanId) return;
 
-    console.log("Connecting to:", cleanId);
-    const conn = peerRef.current.connect(cleanId);
+    // 🛑 先強制清空一次連線，廢掉手機自己的 Host 功能
+    if (connection) connection.close();
 
-    // 監聽連線成功
-    conn.on("open", () => {
-      setConnection(conn);
-      setGameState("remote_control"); // 只有連線成功才跳轉畫面
-      alert("Connected!");
+    console.log("📡 Connecting...");
+    const conn = peerRef.current.connect(cleanId, {
+      reliable: true
     });
 
-    // 監聽錯誤 (例如 ID 不存在)
+    conn.on("open", () => {
+      // 這裡加一個延遲，確保 React 已經準備好切換畫面
+      setTimeout(() => {
+        setConnection(conn);
+        setGameState("remote_control");
+        console.log("✅ JUMPED TO REMOTE UI");
+      }, 200);
+      
+      // 手機震動一下（如果有支援），話你知成功咗
+      if (navigator.vibrate) navigator.vibrate(100);
+    });
+
     conn.on("error", (err) => {
-      alert("Connection failed: " + err.type);
+      alert("Connect Error: " + err.type);
     });
   };
+  */
 
   // 3. 副機端：發送 HIT 訊號
   const sendHit = () => {
@@ -363,6 +380,32 @@ export default function Game() {
 
   return (
     <div className="h-[100dvh] w-screen flex flex-col bg-gray-950 text-white select-none overflow-hidden" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+      {/* Remote Control Overlay */}
+      {gameState === "remote_control" && (
+        <div className="fixed inset-0 z-[100] bg-gray-950 flex flex-col items-center justify-center p-6">
+          <div className="text-white/40 mb-8 text-center">
+            <p className="text-xs uppercase tracking-widest font-bold text-violet-400">CONNECTED AS REMOTE</p>
+          </div>
+          
+          <button
+            onPointerDown={(e) => {
+              e.preventDefault();
+              sendHit();
+            }}
+            className="w-64 h-64 bg-violet-600 active:bg-violet-400 active:scale-95 transition-all rounded-full shadow-[0_0_80px_rgba(139,92,246,0.6)] flex items-center justify-center border-8 border-white/20"
+          >
+            <span className="text-4xl font-black text-white italic">HIT!</span>
+          </button>
+
+          <button 
+            onClick={() => window.location.reload()} // 最暴力嘅斷開方法：直接 Reload
+            className="mt-12 px-6 py-2 bg-white/5 rounded-full text-white/40 text-[10px] font-bold uppercase tracking-widest"
+          >
+            Exit Remote Mode
+          </button>
+        </div>
+      )}
+   
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 z-10 relative bg-gray-950/50 backdrop-blur-md border-b border-white/5">
         <div className="flex items-center gap-3">
@@ -577,6 +620,7 @@ export default function Game() {
             </button>
           </div>
 
+          
           {/* Settings Panel 內部新增一個 Section */}
           <div className="mt-8 pt-6 border-t border-white/5">
             <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4 block">
@@ -584,7 +628,6 @@ export default function Game() {
             </label>
             
             <div className="space-y-4">
-              {/* 顯示自己的 ID */}
               <div className="bg-black/40 p-3 rounded-xl">
                 <p className="text-[10px] text-white/40 mb-1">Your Device ID (Host)</p>
                 <div className="flex items-center justify-between gap-3">
@@ -604,8 +647,9 @@ export default function Game() {
                   </button>
                 </div>
               </div>
-
-              {/* 連線到另一台裝置 */}
+            </div> 
+            {/*
+              連線到另一台裝置
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -620,15 +664,14 @@ export default function Game() {
                 >
                   {connection ? "Connected ✅" : "Connect as Remote"}
                 </button>
-                {/* 狀態提示文字 */}
+
                 {!connection && targetPeerId && (
                   <p className="text-[10px] text-white/20 text-center uppercase tracking-tighter">
                     Waiting for master to accept...
                   </p>
                 )}
               </div>
-              
-            </div>
+            */}
           </div>
         </div>
       )}
@@ -791,30 +834,6 @@ export default function Game() {
           </div>
         )}
       </div> 
-
-      {/* Remote Control Overlay */}
-      {gameState === "remote_control" && (
-      <div className="fixed inset-0 z-[100] bg-gray-950 flex flex-col items-center justify-center p-6">
-        <div className="text-white/40 mb-8 text-center">
-          <p className="text-xs uppercase tracking-widest font-bold">Connected to Master</p>
-          <p className="text-[10px] opacity-50">Tap anywhere to TRIGGER</p>
-        </div>
-        
-        <button
-          onPointerDown={sendHit} // 使用 PointerDown 反應更快
-          className="w-full aspect-square max-w-[300px] bg-violet-600 active:bg-violet-400 active:scale-95 transition-all rounded-full shadow-[0_0_80px_rgba(139,92,246,0.3)] flex items-center justify-center border-8 border-white/10"
-        >
-          <span className="text-4xl font-black text-white italic">HIT!</span>
-        </button>
-
-        <button 
-          onClick={() => setGameState("idle")}
-          className="mt-12 text-white/20 text-xs font-bold uppercase tracking-widest hover:text-white/40"
-        >
-          Disconnect
-        </button>
-      </div>
-    )}
 
       <style>{`
         @keyframes countdown-pop {
