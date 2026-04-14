@@ -9,11 +9,19 @@ export default function Remote() {
 
   useEffect(() => {
     const peer = new Peer({
-      config: {
-        'iceServers': [
-          { urls: 'stun:stun.l.google.com:19302' }, // 用 Google 嘅免費 STUN server 幫手穿透
-        ]
-      }
+        // 強制指定 PeerJS 官方伺服器，避免自動搜尋出錯
+        host: "0.0.peerjs.com",
+        port: 443,
+        secure: true,
+        debug: 3, // 喺 Console 睇到最詳細嘅連線過程
+        config: {
+            iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            ],
+            // 解決 negotiation-failed 嘅關鍵：強制使用統一協定
+            sdpSemantics: "unified-plan" 
+        }
     });
     peerRef.current = peer;
     return () => peer.destroy();
@@ -24,7 +32,8 @@ export default function Remote() {
     setStatus("connecting");
     
     const newConn = peerRef.current.connect(targetId.trim(), {
-        reliable: true // 確保數據傳輸可靠
+        reliable: true, // 確保數據傳輸可靠
+        serialization: 'json',
     });
     
     newConn.on("open", () => {

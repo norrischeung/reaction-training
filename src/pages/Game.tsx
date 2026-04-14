@@ -225,11 +225,19 @@ export default function Game() {
   // 只保留接收連線的 useEffect
   useEffect(() => {
     const peer = new Peer({
-      config: {
-        'iceServers': [
-          { urls: 'stun:stun.l.google.com:19302' }, // 用 Google 嘅免費 STUN server 幫手穿透
-        ]
-      }
+        // 強制指定 PeerJS 官方伺服器，避免自動搜尋出錯
+        host: "0.0.peerjs.com",
+        port: 443,
+        secure: true,
+        debug: 3, // 喺 Console 睇到最詳細嘅連線過程
+        config: {
+            iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            { urls: "stun:stun1.l.google.com:19302" },
+            ],
+            // 解決 negotiation-failed 嘅關鍵：強制使用統一協定
+            sdpSemantics: "unified-plan" 
+        }
     });
     peerRef.current = peer;
 
@@ -440,27 +448,36 @@ export default function Game() {
 
       {/* Settings Panel */}
       {showSettings && (
-        <div className="absolute top-12 sm:top-16 right-2 sm:right-4 z-50 bg-gray-900 border border-white/10 rounded-2xl p-4 sm:p-5 shadow-2xl w-[calc(100vw-1rem)] sm:w-72 max-w-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-white/90">Advanced Settings</h2>
-            
-            {/* Bluetooth Quick Toggle */}
-            <button
-              onClick={connectSensor}
-              className={`p-2 rounded-lg transition-all duration-300 ${
-                isConnected 
-                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
-                  : "bg-white/5 text-white/40 border border-white/10 hover:bg-white/10"
-              }`}
-              title={isConnected ? "Sensor Connected" : "Connect Sensor"}
-            >
-              <div className="flex items-center gap-2 text-xs font-bold">
-                <span>{isConnected ? "CONNECTED" : "OFFLINE"}</span>
-                <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-blue-400 animate-pulse" : "bg-gray-600"}`} />
-              </div>
-            </button>
-          </div>
-
+        <div 
+          className="absolute top-12 sm:top-16 right-2 sm:right-4 z-50 
+                    bg-gray-900/95 backdrop-blur-xl border border-white/10 
+                    rounded-2xl p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] 
+                    w-[calc(100vw-1rem)] sm:w-80 max-w-xs
+                    /* These two lines fix the scrolling */
+                    max-h-[80vh] overflow-y-auto custom-scrollbar"
+        >
+            <div className="flex justify-between mb-6 px-1">
+              <h2 className="text-sm font-bold text-white/90 whitespace-nowrap">Advanced Settings</h2>
+              
+              {/* Bluetooth Quick Toggle */}
+              <button
+                onClick={connectSensor}
+                className={`shrink-0 px-2 py-1 rounded-md transition-all duration-300 border ${
+                  isConnected 
+                    ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
+                    : "bg-white/5 text-white/40 border border-white/10 hover:bg-white/10"
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-black tracking-tighter uppercase">
+                    {isConnected ? "Connected" : "Offline"}
+                  </span>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    isConnected ? "bg-blue-400 animate-pulse" : "bg-white/20"
+                  }`} />
+                </div>
+              </button>
+            </div>
           <div className="mb-6">
             <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 block">
               Training Mode
