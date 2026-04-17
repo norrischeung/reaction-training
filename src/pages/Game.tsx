@@ -84,7 +84,7 @@ export default function Game() {
           } else {
             // Right = Remote Device (The other one)
             setLeftActive(false);
-            setRightActive(true); // Keep Host dark
+            setRightActive(false); // Keep Host dark
 
             // SEND SIGNAL to Remote
             if (connection && connection.open) {
@@ -224,7 +224,7 @@ export default function Game() {
 
   //Remote Receiver
   const [myPeerId, setMyPeerId] = useState<string>("");
-  //const [targetPeerId, setTargetPeerId] = useState<string>("");
+  const [remotePeerId, setRemotePeerId] = useState<string>("");   // 儲存你打入去嗰串 ID
   const [connection, setConnection] = useState<DataConnection | null>(null);
   const peerRef = useRef<Peer | null>(null);
 
@@ -232,10 +232,9 @@ export default function Game() {
   useEffect(() => {
     const peer = new Peer({
         // 強制指定 PeerJS 官方伺服器，避免自動搜尋出錯
-        host: "0.0.peerjs.com",
-        port: 443,
-        secure: true,
-        debug: 3, // 喺 Console 睇到最詳細嘅連線過程
+        //host: "peerjs.com",
+        //port: 443,
+        //secure: true,
         config: {
             iceServers: [
             { urls: "stun:stun.l.google.com:19302" },
@@ -243,11 +242,15 @@ export default function Game() {
             ],
             // 解決 negotiation-failed 嘅關鍵：強制使用統一協定
             sdpSemantics: "unified-plan" 
-        }
+        },
+        debug: 3, // 喺 Console 睇到最詳細嘅連線過程
     });
     peerRef.current = peer;
 
-    peer.on('open', (id) => setMyPeerId(id));
+    peer.on('open', (id) => {
+      console.log('✅ My Peer ID is: ' + id);
+      setMyPeerId(id);
+    });
 
     peer.on('connection', (conn) => {
       setConnection(conn);
@@ -276,39 +279,32 @@ export default function Game() {
       });
     });
 
+    peer.on('error', (err) => {
+      console.error('❌ PeerJS Error:', err.type);
+      if (err.type === 'browser-incompatible') {
+        alert('瀏覽器唔支援 PeerJS');
+      }
+    });
+
     return () => peer.destroy();
-  }, []);
+  }, [peerRef.current]);
 
-  /* 2. 副機端：主動連線到主機
-  const connectToHost = () => {
-    const cleanId = targetPeerId.trim();
-    if (!peerRef.current || !cleanId) return;
+  const connectToPeer = (id: string) => {
+    if (!peerRef.current || !id) return;
 
-    // 🛑 先強制清空一次連線，廢掉手機自己的 Host 功能
-    if (connection) connection.close();
+    console.log("正在連線至:", id);
+    const conn = peerRef.current.connect(id);
 
-    console.log("📡 Connecting...");
-    const conn = peerRef.current.connect(cleanId, {
-      reliable: true
+    conn.on('open', () => {
+      setConnection(conn);
+      console.log("✅ 成功連線到對方裝置！");
     });
 
-    conn.on("open", () => {
-      // 這裡加一個延遲，確保 React 已經準備好切換畫面
-      setTimeout(() => {
-        setConnection(conn);
-        setGameState("remote_control");
-        console.log("✅ JUMPED TO REMOTE UI");
-      }, 200);
-      
-      // 手機震動一下（如果有支援），話你知成功咗
-      if (navigator.vibrate) navigator.vibrate(100);
-    });
-
-    conn.on("error", (err) => {
-      alert("Connect Error: " + err.type);
+    conn.on('error', (err: any) => {
+      console.error("❌ 連線出錯:", err);
+      alert("連線失敗，請檢查 ID 是否正確");
     });
   };
-  */
 
   // 3. 副機端：發送 HIT 訊號
   const sendHit = () => {
@@ -321,20 +317,25 @@ export default function Game() {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    if (!myPeerId) return;
-    
-    // 複製到剪貼簿
-    navigator.clipboard.writeText(myPeerId);
-    
-    // 顯示「已複製」狀態 2 秒
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (navigator.clipboard && myPeerId) {
+      try {
+        navigator.clipboard.writeText(myPeerId);
+        setCopied(true);
+        alert("ID copied!");
+      } catch (err) {
+        console.error("Failed to copy!", err);
+      }
+    } else {
+      //  fallback 方案：如果 clipboard 唔存在
+      console.log("Clipboard API not available");
+      alert("Your ID: " + myPeerId);
+    }
   };
 
   // 1. We need these states to track the millisecond-perfect timing
   // Track the actual numbers
   const [startTime, setStartTime] = useState<number>(0);
-  const [reactionTime, setReactionTime] = useState<number>(0);
+  const [reactionTime, setReactionTime] = useState<number | null>(null);
   const [leftActive, setLeftActive] = useState(false);
   const [rightActive, setRightActive] = useState(false);
 
@@ -531,6 +532,64 @@ export default function Game() {
                 </button>
               </div>
             </div>
+
+            {/* 模式切換之後... */}
+            {mode === "advanced" && (
+              <div className="mt-6 p-4 bg-white/5 rounded-2xl border border-white/10 space-y-4">
+                <h3 className="text-xs font-bold text-violet-400 uppercase tracking-widest">Multi-Device (Advanced)</h3>
+                
+                {/* 顯示本地 ID，俾另一部機連入嚟 */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] text-white/40">This Device ID (Share this)</span>
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-black/40 px-3 py-2 rounded-lg font-mono text-sm text-white truncate">
+                      {myPeerId || "Generating..."}
+                    </div>
+                    <button 
+                      onClick={handleCopy}
+                      className="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-xs transition"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                <div className="h-[1px] bg-white/10 my-2" />
+
+                {/* 連線至 Host 的輸入框 */}
+                {!connection ? (
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[10px] text-white/40">Connect to another device</span>
+                    <input 
+                      type="text" 
+                      placeholder="Paste Host ID here..."
+                      value={remotePeerId}
+                      onChange={(e) => setRemotePeerId(e.target.value)}
+                      className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500 transition"
+                    />
+                    <button 
+                      onClick={() => connectToPeer(remotePeerId)}
+                      className="w-full bg-violet-600 hover:bg-violet-500 py-2 rounded-lg font-bold text-sm transition"
+                    >
+                      Connect as Remote
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between bg-green-500/10 border border-green-500/20 p-3 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      <span className="text-xs text-green-400 font-medium">Device Connected</span>
+                    </div>
+                    <button 
+                      onClick={() => setConnection(null)}
+                      className="text-[10px] text-red-400 hover:underline"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             
 
             {/* Countdown time — hidden when random time is on */}
@@ -663,6 +722,7 @@ export default function Game() {
 
             
             {/* Settings Panel 內部新增一個 Section */}
+            {/*
             <div className="mt-8 pt-6 border-t border-white/5">
               <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4 block">
                 Remote Wireless Control
@@ -689,7 +749,6 @@ export default function Game() {
                   </div>
                 </div>
               </div> 
-              {/*
                 連線到另一台裝置
                 <div className="flex gap-2">
                   <input
@@ -712,8 +771,8 @@ export default function Game() {
                     </p>
                   )}
                 </div>
-              */}
             </div>
+            */}
           </div>  
           
         </div>
@@ -775,10 +834,10 @@ export default function Game() {
                   // ADVANCED: Show big reaction time
                   <>
                     <div className="text-7xl font-black text-yellow-400 tabular-nums">
-                      {reactionTime.toFixed(3)}s
+                      {reactionTime !== null ? reactionTime.toFixed(3) : "0.000"}s
                     </div>
-                    <div className={`text-xl font-bold uppercase mt-2 ${getGrade(reactionTime).color}`}>
-                      {getGrade(reactionTime).label}
+                    <div className={`text-xl font-bold uppercase mt-2 ${reactionTime !== null ? getGrade(reactionTime).color : ""}`}>
+                      {reactionTime !== null ? getGrade(reactionTime).label : ""}
                     </div>
                   </>
                 ) : (
@@ -816,11 +875,13 @@ export default function Game() {
           <div className="text-center">
             {rightActive && (
               <div className="animate-bounce font-black text-white drop-shadow-2xl" style={{ fontSize: "clamp(1.5rem, 6vw, 3.5rem)" }}>
-                RIGHT
+                {mode === "advanced" && connection ? "REMOTE FLASHING" : "RIGHT"}
               </div>
             )}
             {!rightActive && (
-              <div className="font-bold text-white/10" style={{ fontSize: "clamp(1.2rem, 5vw, 2.5rem)" }}>RIGHT</div>
+              <div className="font-bold text-white/10" style={{ fontSize: "clamp(1.2rem, 5vw, 2.5rem)" }}>
+                {mode === "advanced" && connection ? "REMOTE SIDE" : "RIGHT"}
+              </div>
             )}
           </div>
         </div>
@@ -830,12 +891,12 @@ export default function Game() {
       <div className="flex items-center justify-center gap-3 py-6">
         
         {/* 1. 遊戲未開始：顯示 Start */}
-        {gameState === "idle" && (
+        {gameState === "idle" && (!(mode === "advanced" && connection)) && (
           <button 
             onClick={startGame} 
             className="h-12 min-w-[140px] px-8 bg-violet-600 hover:bg-violet-500 active:scale-95 transition-all rounded-full font-bold text-sm sm:text-base shadow-lg shadow-violet-900/40 touch-manipulation" 
           >
-            Start Training
+            Start
           </button>
         )}
 

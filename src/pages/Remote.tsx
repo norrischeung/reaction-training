@@ -108,12 +108,15 @@ export default function Remote() {
 
   useEffect(() => {
     const peer = new Peer({
-      host: "0.0.peerjs.com",
-      port: 443,
-      secure: true,
+      //host: "0.0.peerjs.com",
+      //port: 443,
+      //secure: true,
       debug: 1, 
       config: {
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+        ],
         sdpSemantics: "unified-plan" 
       }
     });
@@ -129,8 +132,17 @@ export default function Remote() {
       reliable: true,
       serialization: 'json',
     });
+
+    // 加一個 Timeout 檢查
+    const connectionTimeout = setTimeout(() => {
+      if (status !== "connected") {
+        setStatus("disconnected");
+        alert("Connection timeout - Check Host ID");
+      }
+    }, 10000);
     
     newConn.on("open", () => {
+      clearTimeout(connectionTimeout);
       setConn(newConn);
       setStatus("connected");
     });
@@ -154,18 +166,24 @@ export default function Remote() {
     newConn.on("error", () => setStatus("disconnected"));
   };
 
+  // 1. 定義一個 Function 處理 Hit
+  const handleRemoteHit = () => {
+    if (isFlashing && conn) {
+      console.log("🎯 Remote HIT!");
+      conn.send({ type: "HIT" }); // 傳送返 Master
+      setIsFlashing(false); // 即刻熄燈
+      if (navigator.vibrate) navigator.vibrate(50);
+    } else {
+      console.log("❌ Misfire: Screen wasn't white.");
+    }
+  };
+
   // UI for when connected (Acts as the "Right Side" of the game)
   // Inside your Remote component (status === "connected")
   if (status === "connected") {
     return (
       <div 
-        onPointerDown={() => {
-          if (isFlashing && conn) {
-            conn.send({ type: "HIT" }); // Send hit back to Master
-            setIsFlashing(false); // Turn off flash immediately on hit
-            if (navigator.vibrate) navigator.vibrate(50);
-          }
-        }}
+        onPointerDown={handleRemoteHit}
         className={`h-screen w-screen transition-colors duration-75 flex flex-col items-center justify-center cursor-pointer ${
           isFlashing ? "bg-white" : "bg-gray-950"
         }`}
