@@ -72,26 +72,32 @@ export default function Game() {
         const chosen = Math.random() < 0.5 ? "left" : "right";
         setWinner(chosen);
 
-        //ACTIVATE the specific side highlights
-        if (chosen === "left") {
-          setLeftActive(true);
-          setRightActive(false);
-        } else {
-          setRightActive(true);
-          setLeftActive(false);
-        }
-
         // --- THE NEW MODE SWITCH ---
         if (mode === "advanced") {
           setStartTime(Date.now());
           setGameState("reaction");
-        } else {
-          // BASIC MODE: Just show the direction and wait to restart
-          setGameState("waiting_restart");
           
-          // Trigger auto-restart if enabled
+          if (chosen === "left") {
+            // Left = Host Device (This one)
+            setLeftActive(true);
+            setRightActive(false);
+          } else {
+            // Right = Remote Device (The other one)
+            setLeftActive(false);
+            setRightActive(true); // Keep Host dark
+
+            // SEND SIGNAL to Remote
+            if (connection && connection.open) {
+              connection.send({ type: 'SIGNAL_FLASH' });
+            }   
+          } 
+        } else {
+          // BASIC MODE: Standard local behavior
+          setLeftActive(chosen === "left");
+          setRightActive(chosen === "right");
+
+          setGameState("waiting_restart");
           if (settings.autoRestart) {
-            // You can call your triggerAutoRestart() here 
             triggerAutoRestart();
           }
         }
@@ -163,14 +169,14 @@ export default function Game() {
   };
 
   const handleSensorHit = (side: string) => {
-  // Only trigger if the game is active and the correct side was hit
-    if (gameState === "countdown") {
-      if ((side === 'left' && leftActive) || (side === 'right' && rightActive)) {
-        console.log(`${side} sensor triggered!`);
-        
-        // Stop your timer logic here
-        // For example, if your function is called stopTimer():
-        stopReactionTimer(); 
+    if (gameState === "reaction") { // Changed from "countdown" to "reaction"
+      // Case A: Main device was the target (Left)
+      if (side === 'left' && leftActive) {
+        stopReactionTimer();
+      } 
+      // Case B: Basic mode where Main device handles both
+      else if (mode === 'basic' && ((side === 'left' && leftActive) || (side === 'right' && rightActive))) {
+        stopReactionTimer();
       }
     }
   };
@@ -250,12 +256,20 @@ export default function Game() {
       conn.on('open', () => {
         console.log("📡 Sending ACK to phone...");
         conn.send("SERVER_READY"); 
+        conn.send({ type: "SET_REMOTE_MODE" });
       });
 
-      conn.on('data', (data) => {
-        if (data === 'HIT') {
+      conn.on('data', (data: any) => {
+        if (data === 'HIT' || data.type === 'HIT') {
+          console.log("🎯 Remote HIT received!");
+
+          const receivedAt = Date.now(); // Capture the exact moment the signal arrived
+          
           setGameState(prev => {
-            if (prev === "reaction") stopTimerRef.current();
+            // Only stop if the game is currently in the "reaction" phase
+            if (prev === "reaction") {
+              stopReactionTimer(receivedAt);
+            }
             return prev;
           });
         }
@@ -334,10 +348,15 @@ export default function Game() {
 
   
   //Function for the Mock Button & Bluetooth
-  const stopReactionTimer = () => {
+  const stopReactionTimer = (manualEndTime?: number) => {
+    const endTime = manualEndTime || Date.now();
     // 1. Only run if we are actually in the 'reaction' phase
     if (gameState === "reaction" && startTime) {
-      const duration = (Date.now() - startTime) / 1000;
+      const duration = (endTime - startTime) / 1000;
+      
+      // Ignore accidental "instant" hits (less than 50ms)
+      if (duration < 0.05) return;
+
       setReactionTime(duration);
 
       // 2. Turn off the colors/highlights immediately
@@ -449,247 +468,254 @@ export default function Game() {
       {/* Settings Panel */}
       {showSettings && (
         <div 
-          className="absolute top-12 sm:top-16 right-2 sm:right-4 z-50 
-                    bg-gray-900/95 backdrop-blur-xl border border-white/10 
-                    rounded-2xl p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] 
-                    w-[calc(100vw-1rem)] sm:w-80 max-w-xs
-                    /* These two lines fix the scrolling */
-                    max-h-[80vh] overflow-y-auto custom-scrollbar"
+          className="fixed inset-0 z-50 flex items-start justify-end p-4 sm:p-6"
+          onClick={() => setShowSettings(false)} // This closes the panel
         >
+          <div 
+            className="absolute top-12 sm:top-16 right-2 sm:right-4 z-50 
+                      bg-gray-900/95 backdrop-blur-xl border border-white/10 
+                      rounded-2xl p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.5)] 
+                      w-[calc(100vw-1rem)] sm:w-80 max-w-xs
+                      /* These two lines fix the scrolling */
+                      max-h-[80vh] overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between mb-6 px-1">
-              <h2 className="text-sm font-bold text-white/90 whitespace-nowrap">Advanced Settings</h2>
-              
-              {/* Bluetooth Quick Toggle */}
-              <button
-                onClick={connectSensor}
-                className={`shrink-0 px-2 py-1 rounded-md transition-all duration-300 border ${
-                  isConnected 
-                    ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
-                    : "bg-white/5 text-white/40 border border-white/10 hover:bg-white/10"
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-black tracking-tighter uppercase">
-                    {isConnected ? "Connected" : "Offline"}
-                  </span>
-                  <span className={`w-1.5 h-1.5 rounded-full ${
-                    isConnected ? "bg-blue-400 animate-pulse" : "bg-white/20"
-                  }`} />
-                </div>
-              </button>
-            </div>
-          <div className="mb-6">
-            <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 block">
-              Training Mode
-            </label>
-            <div className="p-1 bg-black/40 rounded-xl flex gap-1">
-              <button
-                onClick={() => { 
-                  handleRestart(); 
-                  setMode("basic"); 
-                }}
-                className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${
-                  mode === "basic" ? "bg-white/10 text-white shadow-xl" : "text-white/30 hover:text-white/60"
-                }`}
-              >
-                BASIC
-              </button>
-              <button
-                onClick={() => { 
-                  handleRestart(); 
-                  setMode("advanced"); 
-                }}
-                className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${
-                  mode === "advanced" ? "bg-violet-600 text-white shadow-lg shadow-violet-900/20" : "text-white/30 hover:text-white/60"
-                }`}
-              >
-                ADVANCED
-              </button>
-            </div>
-          </div>
-          
-
-          {/* Countdown time — hidden when random time is on */}
-          {!settings.randomTime && (
-            <div className="mb-4">
-              <label className="block text-sm text-white/60 mb-1">
-                Countdown time (seconds)
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={settingsInput.countdownTime}
-                onChange={(e) =>
-                  setSettingsInput((p) => ({ ...p, countdownTime: e.target.value }))
-                }
-                className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
-              />
-            </div>
-          )}
-
-          {/* Random time toggle */}
-          <div className="mb-3 flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="randomTime"
-              checked={settings.randomTime}
-              onChange={(e) =>
-                setSettings((p) => ({ ...p, randomTime: e.target.checked }))
-              }
-              className="w-4 h-4 accent-violet-500 cursor-pointer"
-            />
-            <label htmlFor="randomTime" className="text-sm cursor-pointer">
-              Random countdown time
-            </label>
-          </div>
-
-          {/* Random range fields */}
-          {settings.randomTime && (
-            <div className="mb-4 flex gap-2">
-              <div className="flex-1">
-                <label className="block text-xs text-white/50 mb-1">Min (s)</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={settingsInput.randomMin}
-                  onChange={(e) =>
-                    setSettingsInput((p) => ({ ...p, randomMin: e.target.value }))
-                  }
-                  className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-white/50 mb-1">Max (s)</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={settingsInput.randomMax}
-                  onChange={(e) =>
-                    setSettingsInput((p) => ({ ...p, randomMax: e.target.value }))
-                  }
-                  className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Hide timer toggle */}
-          <div className="mb-4 flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="hideTimer"
-              checked={settings.hideTimer}
-              onChange={(e) =>
-                setSettings((p) => ({ ...p, hideTimer: e.target.checked }))
-              }
-              className="w-4 h-4 accent-violet-500 cursor-pointer"
-            />
-            <label htmlFor="hideTimer" className="text-sm cursor-pointer">
-              Hide timer from players
-            </label>
-          </div>
-
-          {/* Auto restart toggle */}
-          <div className="mb-3 flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="autoRestart"
-              checked={settings.autoRestart}
-              onChange={(e) =>
-                setSettings((p) => ({ ...p, autoRestart: e.target.checked }))
-              }
-              className="w-4 h-4 accent-violet-500 cursor-pointer"
-            />
-            <label htmlFor="autoRestart" className="text-sm cursor-pointer">
-              Auto restart
-            </label>
-          </div>
-
-          {settings.autoRestart && (
-            <div className="mb-4">
-              <label className="block text-sm text-white/60 mb-1">
-                Restart delay (seconds)
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={settingsInput.restartDelay}
-                onChange={(e) =>
-                  setSettingsInput((p) => ({ ...p, restartDelay: e.target.value }))
-                }
-                className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
-              />
-            </div>
-          )}
-
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={handleSaveSettings}
-              className="flex-1 bg-violet-600 hover:bg-violet-500 transition-colors rounded-lg py-2 text-sm font-medium"
-            >
-              Save
-            </button>
-            <button
-              onClick={() => setShowSettings(false)}
-              className="flex-1 bg-white/10 hover:bg-white/20 transition-colors rounded-lg py-2 text-sm font-medium"
-            >
-              Cancel
-            </button>
-          </div>
-
-          
-          {/* Settings Panel 內部新增一個 Section */}
-          <div className="mt-8 pt-6 border-t border-white/5">
-            <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4 block">
-              Remote Wireless Control
-            </label>
-            
-            <div className="space-y-4">
-              <div className="bg-black/40 p-3 rounded-xl">
-                <p className="text-[10px] text-white/40 mb-1">Your Device ID (Host)</p>
-                <div className="flex items-center justify-between gap-3">
-                  <code className="text-sm font-mono font-bold text-violet-400 break-all">
-                    {myPeerId || "Generating ID..."}
-                  </code>
-                  
-                  <button
-                    onClick={handleCopy}
-                    className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
-                      copied 
-                        ? "bg-green-500/20 text-green-400" 
-                        : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white"
-                    }`}
-                  >
-                    {copied ? "Copied!" : "Copy"}
-                  </button>
-                </div>
-              </div>
-            </div> 
-            {/*
-              連線到另一台裝置
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter Host ID"
-                  value={targetPeerId}
-                  onChange={(e) => setTargetPeerId(e.target.value)}
-                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none"
-                />
+              <h2 className="text-lg font-bold text-white/95 whitespace-nowrap tracking-tight">Advanced Settings</h2>
+                
+                {/* Bluetooth Quick Toggle */}
                 <button
-                  onClick={connectToHost}
-                  className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold transition-all"
+                  onClick={connectSensor}
+                  className={`shrink-0 px-2 py-1 rounded-md transition-all duration-300 border ${
+                    isConnected 
+                      ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" 
+                      : "bg-white/5 text-white/40 border border-white/5 hover:bg-white/10"
+                  }`}
                 >
-                  {connection ? "Connected ✅" : "Connect as Remote"}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-black tracking-tighter uppercase">
+                      {isConnected ? "Connected" : "Offline"}
+                    </span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      isConnected ? "bg-blue-400 animate-pulse" : "bg-white/20"
+                    }`} />
+                  </div>
                 </button>
-
-                {!connection && targetPeerId && (
-                  <p className="text-[10px] text-white/20 text-center uppercase tracking-tighter">
-                    Waiting for master to accept...
-                  </p>
-                )}
+            </div>
+            <div className="mb-6">
+              <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 block">
+                Training Mode
+              </label>
+              <div className="p-1 bg-black/40 rounded-xl flex gap-1">
+                <button
+                  onClick={() => { 
+                    handleRestart(); 
+                    setMode("basic"); 
+                  }}
+                  className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${
+                    mode === "basic" ? "bg-white/10 text-white shadow-xl" : "text-white/30 hover:text-white/60"
+                  }`}
+                >
+                  BASIC
+                </button>
+                <button
+                  onClick={() => { 
+                    handleRestart(); 
+                    setMode("advanced"); 
+                  }}
+                  className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${
+                    mode === "advanced" ? "bg-violet-600 text-white shadow-lg shadow-violet-900/20" : "text-white/30 hover:text-white/60"
+                  }`}
+                >
+                  ADVANCED
+                </button>
               </div>
-            */}
-          </div>
+            </div>
+            
+
+            {/* Countdown time — hidden when random time is on */}
+            {!settings.randomTime && (
+              <div className="mb-4">
+                <label className="block text-sm text-white/60 mb-1">
+                  Countdown time (seconds)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={settingsInput.countdownTime}
+                  onChange={(e) =>
+                    setSettingsInput((p) => ({ ...p, countdownTime: e.target.value }))
+                  }
+                  className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
+                />
+              </div>
+            )}
+
+            {/* Random time toggle */}
+            <div className="mb-3 flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="randomTime"
+                checked={settings.randomTime}
+                onChange={(e) =>
+                  setSettings((p) => ({ ...p, randomTime: e.target.checked }))
+                }
+                className="w-4 h-4 accent-violet-500 cursor-pointer"
+              />
+              <label htmlFor="randomTime" className="text-sm cursor-pointer">
+                Random countdown time
+              </label>
+            </div>
+
+            {/* Random range fields */}
+            {settings.randomTime && (
+              <div className="mb-4 flex gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs text-white/50 mb-1">Min (s)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={settingsInput.randomMin}
+                    onChange={(e) =>
+                      setSettingsInput((p) => ({ ...p, randomMin: e.target.value }))
+                    }
+                    className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-xs text-white/50 mb-1">Max (s)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={settingsInput.randomMax}
+                    onChange={(e) =>
+                      setSettingsInput((p) => ({ ...p, randomMax: e.target.value }))
+                    }
+                    className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Hide timer toggle */}
+            <div className="mb-4 flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="hideTimer"
+                checked={settings.hideTimer}
+                onChange={(e) =>
+                  setSettings((p) => ({ ...p, hideTimer: e.target.checked }))
+                }
+                className="w-4 h-4 accent-violet-500 cursor-pointer"
+              />
+              <label htmlFor="hideTimer" className="text-sm cursor-pointer">
+                Hide timer from players
+              </label>
+            </div>
+
+            {/* Auto restart toggle */}
+            <div className="mb-3 flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="autoRestart"
+                checked={settings.autoRestart}
+                onChange={(e) =>
+                  setSettings((p) => ({ ...p, autoRestart: e.target.checked }))
+                }
+                className="w-4 h-4 accent-violet-500 cursor-pointer"
+              />
+              <label htmlFor="autoRestart" className="text-sm cursor-pointer">
+                Auto restart
+              </label>
+            </div>
+
+            {settings.autoRestart && (
+              <div className="mb-4">
+                <label className="block text-sm text-white/60 mb-1">
+                  Restart delay (seconds)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={settingsInput.restartDelay}
+                  onChange={(e) =>
+                    setSettingsInput((p) => ({ ...p, restartDelay: e.target.value }))
+                  }
+                  className="w-full bg-gray-800 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-white/30"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={handleSaveSettings}
+                className="flex-1 bg-violet-600 hover:bg-violet-500 transition-colors rounded-lg py-2 text-sm font-medium"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="flex-1 bg-white/10 hover:bg-white/20 transition-colors rounded-lg py-2 text-sm font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+
+            
+            {/* Settings Panel 內部新增一個 Section */}
+            <div className="mt-8 pt-6 border-t border-white/5">
+              <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4 block">
+                Remote Wireless Control
+              </label>
+              
+              <div className="space-y-4">
+                <div className="bg-black/40 p-3 rounded-xl">
+                  <p className="text-[10px] text-white/40 mb-1">Your Device ID (Host)</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <code className="text-sm font-mono font-bold text-violet-400 break-all">
+                      {myPeerId || "Generating ID..."}
+                    </code>
+                    
+                    <button
+                      onClick={handleCopy}
+                      className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
+                        copied 
+                          ? "bg-green-500/20 text-green-400" 
+                          : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+              </div> 
+              {/*
+                連線到另一台裝置
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter Host ID"
+                    value={targetPeerId}
+                    onChange={(e) => setTargetPeerId(e.target.value)}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none"
+                  />
+                  <button
+                    onClick={connectToHost}
+                    className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold transition-all"
+                  >
+                    {connection ? "Connected ✅" : "Connect as Remote"}
+                  </button>
+
+                  {!connection && targetPeerId && (
+                    <p className="text-[10px] text-white/20 text-center uppercase tracking-tighter">
+                      Waiting for master to accept...
+                    </p>
+                  )}
+                </div>
+              */}
+            </div>
+          </div>  
+          
         </div>
       )}
 
@@ -868,6 +894,7 @@ export default function Game() {
           animation: countdown-pop 0.4s ease-out forwards;
         }
       `}</style>
+    
     </div> 
   );
 }
