@@ -243,7 +243,8 @@ export default function Game() {
               { urls: "stun:stun4.l.google.com:19302" },
             ],
             // 解決 negotiation-failed 嘅關鍵：強制使用統一協定
-            sdpSemantics: "unified-plan" 
+            //sdpSemantics: "unified-plan" 
+            iceCandidatePoolSize: 10,
         },
         debug: 3, // 喺 Console 睇到最詳細嘅連線過程
     });
@@ -254,13 +255,15 @@ export default function Game() {
     });
 
     peer.on('connection', (conn) => {
-      setConnection(conn);
-      console.log("👾 Remote joined!");
+      console.log("📩 收到連線請求，等待 Data Channel 開啟...");
 
       conn.on('open', () => {
         console.log("📡 Sending ACK to phone...");
-        conn.send("SERVER_READY"); 
-        conn.send({ type: "SET_REMOTE_MODE" });
+        setConnection(conn);
+        conn.send({ 
+          type: "CONNECTION_SUCCESS", 
+          message: "SERVER_READY" 
+        });
       });
 
       conn.on('data', (data: any) => {
@@ -277,6 +280,14 @@ export default function Game() {
             return prev;
           });
         }
+      });
+
+      conn.on('error', (err) => {
+        console.error("❌ 連線過程中出錯:", err);
+      });
+
+      conn.on('close', () => {
+        setConnection(null);
       });
     });
 
@@ -744,14 +755,14 @@ export default function Game() {
           }`}
         >
           <div className="text-center">
-            {leftActive && (
+            {leftActive ? (
               <div className="animate-bounce font-black text-white drop-shadow-2xl" style={{ fontSize: "clamp(1.5rem, 6vw, 3.5rem)" }}>
                 LEFT
               </div>
-            )}
-            {!leftActive && (
+            ) : (
+              // 無論咩 Mode，唔亮燈就係暗色嘅 LEFT
               <div className="font-bold text-white/10" style={{ fontSize: "clamp(1.2rem, 5vw, 2.5rem)" }}>
-                Master Side
+                LEFT
               </div>
             )}
           </div>
@@ -816,7 +827,6 @@ export default function Game() {
         </div> 
 
         {/* Right Block */}
-        {/* Right Block (Master side) */}
         <div
           onClick={() => { 
             // 💡 如果係 Advanced 且連咗線，呢度唔比撳，要等電話傳返嚟
@@ -835,25 +845,23 @@ export default function Game() {
           }`}
         >
           <div className="text-center">
-            {rightActive && (
-              <div className="flex flex-col items-center gap-4">
-                {mode === "advanced" && connection ? (
-                  <>
-                    <div className="w-4 h-4 bg-blue-500 rounded-full animate-ping" />
-                    <div className="font-black text-blue-400 italic tracking-tighter" style={{ fontSize: "clamp(1rem, 4vw, 2rem)" }}>
-                      SIGNAL SENT TO REMOTE
-                    </div>
-                  </>
-                ) : (
-                  <div className="animate-bounce font-black text-white drop-shadow-2xl" style={{ fontSize: "clamp(1.5rem, 6vw, 3.5rem)" }}>
-                    RIGHT
+            {rightActive ? (
+              mode === "advanced" && connection ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-4 h-4 bg-blue-500 rounded-full animate-ping" />
+                  <div className="font-black text-blue-400 italic tracking-tighter" style={{ fontSize: "clamp(1rem, 4vw, 2rem)" }}>
+                    SIGNAL SENT TO REMOTE
                   </div>
-                )}
-              </div>
-            )}
-            {!rightActive && (
-              <div className="font-bold text-white/5" style={{ fontSize: "clamp(1.2rem, 5vw, 2.5rem)" }}>
-                {mode === "advanced" && connection ? "REMOTE SIDE" : "RIGHT"}
+                </div>
+              ) : (
+                <div className="animate-bounce font-black text-white drop-shadow-2xl" style={{ fontSize: "clamp(1.5rem, 6vw, 3.5rem)" }}>
+                  RIGHT
+                </div>
+              )
+            ) : (
+              // 無論咩 Mode，唔亮燈就係暗色嘅 RIGHT
+              <div className="font-bold text-white/10" style={{ fontSize: "clamp(1.2rem, 5vw, 2.5rem)" }}>
+                RIGHT
               </div>
             )}
           </div>
@@ -864,26 +872,38 @@ export default function Game() {
       <div className="flex items-center justify-center gap-3 py-6">
         
         {/* 1. 遊戲未開始：顯示 Start */}
-        {gameState === "idle" && (!(mode === "advanced" && connection)) && (
-          <div className="absolute inset-0 z-[100] flex items-center justify-center bg-gray-950/80">
-            <button 
-              onClick={startGame}
-              className="w-32 h-32 bg-violet-600 rounded-full font-black text-xl shadow-2xl active:scale-95 transition-all"
-            >
-              START
-            </button>
-          </div>
-        )}
+        {gameState === "idle" && (
+          <div className="absolute bottom-10 left-0 right-0 z-50 flex justify-center pointer-events-none">
+            <div className="pointer-events-auto">
+              {/* 情況 A: Basic Mode —— 永遠顯示紫色圓掣 */}
+              {mode === "basic" && (
+                <button 
+                  onClick={startGame}
+                  className="w-24 h-24 bg-violet-600 rounded-full font-black text-sm shadow-[0_0_30px_rgba(139,92,246,0.4)] active:scale-95 transition-all flex items-center justify-center text-white uppercase tracking-widest border-4 border-white/10"
+                >
+                  START
+                </button>
+              )}
 
-        {/* 如果連咗線，中間顯示一個專屬嘅 Ready Button */}
-        {gameState === "idle" && mode === "advanced" && connection && (
-          <div className="absolute inset-0 z-[100] flex items-center justify-center">
-            <button 
-              onClick={startGame}
-              className="px-10 py-5 bg-white text-black font-black italic rounded-2xl shadow-2xl active:scale-95 transition-all"
-            >
-              READY? GO!
-            </button>
+              {/* 情況 B: Advanced Mode —— 連咗線先顯示白色長掣 */}
+              {mode === "advanced" && connection && (
+                <button 
+                  onClick={startGame}
+                  className="px-12 py-4 bg-white text-black font-black italic text-xl rounded-2xl shadow-[0_10px_40px_rgba(255,255,255,0.2)] active:scale-95 transition-all uppercase"
+                >
+                  START TRAINING
+                </button>
+              )}
+
+              {/* 情況 C: Advanced Mode —— 未連線顯示狀態 */}
+              {mode === "advanced" && !connection && (
+                <div className="px-6 py-3 bg-white/5 border border-white/10 rounded-full backdrop-blur-md">
+                  <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
+                    Waiting for Remote...
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
