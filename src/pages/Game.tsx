@@ -873,13 +873,13 @@ export default function Game() {
         
         {/* 1. 遊戲未開始：顯示 Start */}
         {gameState === "idle" && (
-          <div className="absolute bottom-10 left-0 right-0 z-50 flex justify-center pointer-events-none">
-            <div className="pointer-events-auto">
+          <div className="absolute bottom-12 left-0 right-0 z-50 flex justify-center pointer-events-none">
+            <div className="pointer-events-auto w-full max-w-xs px-6">
               {/* 情況 A: Basic Mode —— 永遠顯示紫色圓掣 */}
               {mode === "basic" && (
                 <button 
                   onClick={startGame}
-                  className="w-24 h-24 bg-violet-600 rounded-full font-black text-sm shadow-[0_0_30px_rgba(139,92,246,0.4)] active:scale-95 transition-all flex items-center justify-center text-white uppercase tracking-widest border-4 border-white/10"
+                  className="w-full bg-violet-600 hover:bg-violet-500 py-5 rounded-2xl font-black text-xl text-white italic tracking-tighter shadow-[0_20px_50px_rgba(139,92,246,0.3)] active:scale-95 transition-all border-b-4 border-violet-800"
                 >
                   START
                 </button>
@@ -889,18 +889,21 @@ export default function Game() {
               {mode === "advanced" && connection && (
                 <button 
                   onClick={startGame}
-                  className="px-12 py-4 bg-white text-black font-black italic text-xl rounded-2xl shadow-[0_10px_40px_rgba(255,255,255,0.2)] active:scale-95 transition-all uppercase"
-                >
+                  className="w-full bg-white hover:bg-gray-100 py-5 rounded-2xl font-black text-xl text-black italic tracking-tighter shadow-[0_20px_50px_rgba(255,255,255,0.2)] active:scale-95 transition-all border-b-4 border-gray-300"
+            >
                   START TRAINING
                 </button>
               )}
 
               {/* 情況 C: Advanced Mode —— 未連線顯示狀態 */}
               {mode === "advanced" && !connection && (
-                <div className="px-6 py-3 bg-white/5 border border-white/10 rounded-full backdrop-blur-md">
-                  <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
-                    Waiting for Remote...
-                  </p>
+                <div className="w-full bg-white/5 border border-white/10 py-5 rounded-2xl backdrop-blur-md flex items-center justify-center">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 bg-violet-500 rounded-full animate-pulse" />
+                    <p className="text-white/40 text-xs font-black uppercase tracking-[0.2em]">
+                      Waiting for Remote...
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
