@@ -116,6 +116,9 @@ export default function Remote() {
         iceServers: [
           { urls: "stun:stun.l.google.com:19302" },
           { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun2.l.google.com:19302" },
+          { urls: "stun:stun3.l.google.com:19302" },
+          { urls: "stun:stun4.l.google.com:19302" },
         ],
         sdpSemantics: "unified-plan" 
       }
@@ -128,7 +131,7 @@ export default function Remote() {
     if (!peerRef.current || !targetId) return;
     setStatus("connecting");
     
-    const newConn = peerRef.current.connect(targetId.trim().toLowerCase(), {
+    const newConn = peerRef.current.connect(targetId.trim(), {
       reliable: true,
       serialization: 'json',
     });
@@ -150,31 +153,33 @@ export default function Remote() {
     newConn.on("data", (data: any) => {
       console.log("📩 Received:", data);
       
-      // Handle the flash signal from the Master
-      if (data.type === "SIGNAL_FLASH") {
+      // 認得 Master 射過嚟嘅 Flash 訊號
+      if (data === "SIGNAL_FLASH" || data.type === "SIGNAL_FLASH") {
         setIsFlashing(true);
-        
-        // Vibrate for physical feedback
         if (navigator.vibrate) navigator.vibrate(200);
 
-        // Turn off flash after 500ms
+        // 安全機制：500ms 後自動熄燈，防止畫面卡死喺白色
         setTimeout(() => setIsFlashing(false), 500);
       }
     });
 
     newConn.on("close", () => setStatus("disconnected"));
-    newConn.on("error", () => setStatus("disconnected"));
+    //newConn.on("error", () => setStatus("disconnected"));
   };
 
   // 1. 定義一個 Function 處理 Hit
   const handleRemoteHit = () => {
-    if (isFlashing && conn) {
-      console.log("🎯 Remote HIT!");
-      conn.send({ type: "HIT" }); // 傳送返 Master
-      setIsFlashing(false); // 即刻熄燈
-      if (navigator.vibrate) navigator.vibrate(50);
+    // 只有閃緊燈且連線緊先可以 HIT
+    if (isFlashing && conn && conn.open) {
+      setIsFlashing(false); // 💡 第一時間熄燈，視覺反饋最快
+      
+      // 傳送 HIT 訊號返去 Master 停錶
+      conn.send({ type: "HIT" }); 
+      
+      if (navigator.vibrate) navigator.vibrate(50); // 短震動反饋
+      console.log("🎯 HIT sent to Master!");
     } else {
-      console.log("❌ Misfire: Screen wasn't white.");
+      console.log("❌ 無效點擊：燈未閃或連線已斷");
     }
   };
 
@@ -183,20 +188,24 @@ export default function Remote() {
   if (status === "connected") {
     return (
       <div 
-        onPointerDown={handleRemoteHit}
-        className={`h-screen w-screen transition-colors duration-75 flex flex-col items-center justify-center cursor-pointer ${
+        // 💡 使用 onPointerDown 代替 onClick，反應會快 300ms
+        onPointerDown={(e) => {
+          e.preventDefault();
+          handleRemoteHit();
+        }}
+        className={`h-[100dvh] w-screen transition-colors duration-75 flex flex-col items-center justify-center cursor-pointer ${
           isFlashing ? "bg-white" : "bg-gray-950"
         }`}
       >
         {isFlashing ? (
-          <span className="text-black font-black text-4xl italic animate-pulse">HIT NOW!</span>
+          <span className="text-black font-black text-5xl italic animate-pulse">HIT!</span>
         ) : (
-          <div className="text-center">
-            <div className="w-24 h-24 border-4 border-violet-500/20 rounded-full flex items-center justify-center mx-auto">
-              <div className="w-12 h-12 bg-violet-500 rounded-full blur-xl animate-pulse" />
+          <div className="text-center opacity-40">
+            <div className="w-20 h-20 border-2 border-violet-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
+              <div className="w-10 h-10 bg-violet-500 rounded-full blur-xl animate-pulse" />
             </div>
-            <p className="mt-8 text-white/20 uppercase tracking-[0.3em] text-[10px] font-black">
-              Ready for Signal
+            <p className="text-white font-bold tracking-[0.4em] text-[10px] uppercase">
+              Waiting for Signal
             </p>
           </div>
         )}

@@ -84,7 +84,7 @@ export default function Game() {
           } else {
             // Right = Remote Device (The other one)
             setLeftActive(false);
-            setRightActive(false); // Keep Host dark
+            setRightActive(true); // Keep Host dark
 
             // SEND SIGNAL to Remote
             if (connection && connection.open) {
@@ -175,7 +175,7 @@ export default function Game() {
         stopReactionTimer();
       } 
       // Case B: Basic mode where Main device handles both
-      else if (mode === 'basic' && ((side === 'left' && leftActive) || (side === 'right' && rightActive))) {
+      else if (mode === 'basic' && side === 'right' && rightActive) {
         stopReactionTimer();
       }
     }
@@ -236,7 +236,11 @@ export default function Game() {
         secure: true,
         config: {
             iceServers: [
-            { urls: "stun:stun.l.google.com:19302" },
+              { urls: "stun:stun.l.google.com:19302" },
+              { urls: "stun:stun1.l.google.com:19302" },
+              { urls: "stun:stun2.l.google.com:19302" },
+              { urls: "stun:stun3.l.google.com:19302" },
+              { urls: "stun:stun4.l.google.com:19302" },
             ],
             // 解決 negotiation-failed 嘅關鍵：強制使用統一協定
             sdpSemantics: "unified-plan" 
@@ -861,12 +865,26 @@ export default function Game() {
         
         {/* 1. 遊戲未開始：顯示 Start */}
         {gameState === "idle" && (!(mode === "advanced" && connection)) && (
-          <button 
-            onClick={startGame} 
-            className="h-12 min-w-[140px] px-8 bg-violet-600 hover:bg-violet-500 active:scale-95 transition-all rounded-full font-bold text-sm sm:text-base shadow-lg shadow-violet-900/40 touch-manipulation" 
-          >
-            Start
-          </button>
+          <div className="absolute inset-0 z-[100] flex items-center justify-center bg-gray-950/80">
+            <button 
+              onClick={startGame}
+              className="w-32 h-32 bg-violet-600 rounded-full font-black text-xl shadow-2xl active:scale-95 transition-all"
+            >
+              START
+            </button>
+          </div>
+        )}
+
+        {/* 如果連咗線，中間顯示一個專屬嘅 Ready Button */}
+        {gameState === "idle" && mode === "advanced" && connection && (
+          <div className="absolute inset-0 z-[100] flex items-center justify-center">
+            <button 
+              onClick={startGame}
+              className="px-10 py-5 bg-white text-black font-black italic rounded-2xl shadow-2xl active:scale-95 transition-all"
+            >
+              READY? GO!
+            </button>
+          </div>
         )}
 
         {/* 2. 訓練中：顯示 Cancel */}
