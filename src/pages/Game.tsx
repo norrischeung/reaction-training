@@ -230,22 +230,19 @@ export default function Game() {
 
   // 只保留接收連線的 useEffect
   useEffect(() => {
+    if (peerRef.current) return;
+
     const peer = new Peer({
-        // 強制指定 PeerJS 官方伺服器，避免自動搜尋出錯
-        //host: "peerjs.com",
-        //port: 443,
-        //secure: true,
+        secure: true,
         config: {
             iceServers: [
             { urls: "stun:stun.l.google.com:19302" },
-            { urls: "stun:stun1.l.google.com:19302" },
             ],
             // 解決 negotiation-failed 嘅關鍵：強制使用統一協定
             sdpSemantics: "unified-plan" 
         },
         debug: 3, // 喺 Console 睇到最詳細嘅連線過程
     });
-    peerRef.current = peer;
 
     peer.on('open', (id) => {
       console.log('✅ My Peer ID is: ' + id);
@@ -279,15 +276,22 @@ export default function Game() {
       });
     });
 
+    peer.on('disconnected', () => {
+      console.log("❌ Connection lost. Reconnecting...");
+      peer.reconnect(); // 呢句可以幫你攞返原本個 ID 並連返 Server
+    });
+
     peer.on('error', (err) => {
-      console.error('❌ PeerJS Error:', err.type);
-      if (err.type === 'browser-incompatible') {
-        alert('瀏覽器唔支援 PeerJS');
+      if (err.type === 'network') {
+        // 💡 Localhost 常用大絕：如果斷網，等 2 秒再連
+        setTimeout(() => {
+          if (!peer.destroyed) peer.reconnect();
+        }, 2000);
       }
     });
 
-    return () => peer.destroy();
-  }, [peerRef.current]);
+    peerRef.current = peer;
+  }, []);
 
   const connectToPeer = (id: string) => {
     if (!peerRef.current || !id) return;
@@ -719,60 +723,6 @@ export default function Game() {
                 Cancel
               </button>
             </div>
-
-            
-            {/* Settings Panel 內部新增一個 Section */}
-            {/*
-            <div className="mt-8 pt-6 border-t border-white/5">
-              <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-4 block">
-                Remote Wireless Control
-              </label>
-              
-              <div className="space-y-4">
-                <div className="bg-black/40 p-3 rounded-xl">
-                  <p className="text-[10px] text-white/40 mb-1">Your Device ID (Host)</p>
-                  <div className="flex items-center justify-between gap-3">
-                    <code className="text-sm font-mono font-bold text-violet-400 break-all">
-                      {myPeerId || "Generating ID..."}
-                    </code>
-                    
-                    <button
-                      onClick={handleCopy}
-                      className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
-                        copied 
-                          ? "bg-green-500/20 text-green-400" 
-                          : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white"
-                      }`}
-                    >
-                      {copied ? "Copied!" : "Copy"}
-                    </button>
-                  </div>
-                </div>
-              </div> 
-                連線到另一台裝置
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Enter Host ID"
-                    value={targetPeerId}
-                    onChange={(e) => setTargetPeerId(e.target.value)}
-                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none"
-                  />
-                  <button
-                    onClick={connectToHost}
-                    className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold transition-all"
-                  >
-                    {connection ? "Connected ✅" : "Connect as Remote"}
-                  </button>
-
-                  {!connection && targetPeerId && (
-                    <p className="text-[10px] text-white/20 text-center uppercase tracking-tighter">
-                      Waiting for master to accept...
-                    </p>
-                  )}
-                </div>
-            </div>
-            */}
           </div>  
           
         </div>
@@ -785,10 +735,8 @@ export default function Game() {
           onClick={() => { if(leftActive) handleSensorHit('left'); }}
           className={`flex-1 flex items-center justify-center transition-all duration-700 ${
             (leftActive && (gameState === "reaction" || gameState === "result"))
-              ? "bg-gradient-to-br from-violet-600 to-violet-900 scale-[1.01]"
-              : rightActive
-                ? "bg-gray-900/50 scale-[0.99]"
-                : "bg-gray-900/30"
+              ? "bg-gradient-to-br from-violet-600 to-violet-900 scale-[1.02] z-20"
+              : "bg-gray-900/30 scale-[1.0]"
           }`}
         >
           <div className="text-center">
@@ -798,7 +746,9 @@ export default function Game() {
               </div>
             )}
             {!leftActive && (
-              <div className="font-bold text-white/10" style={{ fontSize: "clamp(1.2rem, 5vw, 2.5rem)" }}>LEFT</div>
+              <div className="font-bold text-white/10" style={{ fontSize: "clamp(1.2rem, 5vw, 2.5rem)" }}>
+                Master Side
+              </div>
             )}
           </div>
         </div>
@@ -862,11 +812,19 @@ export default function Game() {
         </div> 
 
         {/* Right Block */}
+        {/* Right Block (Master side) */}
         <div
-          onClick={() => { if(rightActive) handleSensorHit('right'); }}
+          onClick={() => { 
+            // 💡 如果係 Advanced 且連咗線，呢度唔比撳，要等電話傳返嚟
+            if (rightActive && (!connection || mode === "basic")) {
+              handleSensorHit('right');
+            }
+          }}
           className={`flex-1 flex items-center justify-center transition-all duration-700 ${
             (rightActive && (gameState === "reaction" || gameState === "result"))
-              ? "bg-gradient-to-bl from-blue-600 to-blue-900 scale-[1.01]"
+              ? mode === "advanced" && connection
+                ? "bg-white/5 scale-[0.98] border-l border-white/10" // 連咗線後：變虛
+                : "bg-gradient-to-bl from-blue-600 to-blue-900 scale-[1.01]" // 未連線：原本藍色
               : leftActive
                 ? "bg-gray-900/50 scale-[0.99]"
                 : "bg-gray-900/30"
@@ -874,12 +832,23 @@ export default function Game() {
         >
           <div className="text-center">
             {rightActive && (
-              <div className="animate-bounce font-black text-white drop-shadow-2xl" style={{ fontSize: "clamp(1.5rem, 6vw, 3.5rem)" }}>
-                {mode === "advanced" && connection ? "REMOTE FLASHING" : "RIGHT"}
+              <div className="flex flex-col items-center gap-4">
+                {mode === "advanced" && connection ? (
+                  <>
+                    <div className="w-4 h-4 bg-blue-500 rounded-full animate-ping" />
+                    <div className="font-black text-blue-400 italic tracking-tighter" style={{ fontSize: "clamp(1rem, 4vw, 2rem)" }}>
+                      SIGNAL SENT TO REMOTE
+                    </div>
+                  </>
+                ) : (
+                  <div className="animate-bounce font-black text-white drop-shadow-2xl" style={{ fontSize: "clamp(1.5rem, 6vw, 3.5rem)" }}>
+                    RIGHT
+                  </div>
+                )}
               </div>
             )}
             {!rightActive && (
-              <div className="font-bold text-white/10" style={{ fontSize: "clamp(1.2rem, 5vw, 2.5rem)" }}>
+              <div className="font-bold text-white/5" style={{ fontSize: "clamp(1.2rem, 5vw, 2.5rem)" }}>
                 {mode === "advanced" && connection ? "REMOTE SIDE" : "RIGHT"}
               </div>
             )}

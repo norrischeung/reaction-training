@@ -110,7 +110,7 @@ export default function Remote() {
     const peer = new Peer({
       //host: "0.0.peerjs.com",
       //port: 443,
-      //secure: true,
+      secure: true,
       debug: 1, 
       config: {
         iceServers: [
