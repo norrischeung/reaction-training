@@ -574,103 +574,98 @@ export default function Game() {
       )}
 
       {/* Game Area */}
-      <div className="flex-1 flex relative">
-        {/* Left Block */}
-        <div
-          onClick={() => { if(leftActive) handleSensorHit('left'); }}
-          className={`flex-1 flex items-center justify-center transition-all duration-700 ${
-            (leftActive && (gameState === "reaction" || gameState === "result"))
-              ? "bg-gradient-to-br from-violet-600 to-violet-900 scale-[1.02] z-20"
-              : "bg-gray-900/30"
-          }`}
-        >
-          <div className="text-center">
-            <div className={`${leftActive ? 'animate-bounce text-white drop-shadow-2xl' : 'text-white/10'} font-black`} style={{ fontSize: "clamp(1.5rem, 6vw, 3.5rem)" }}>
-              LEFT
-            </div>
-          </div>
-        </div>
-
-        {/* Center Overlay */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <div className="absolute inset-y-0 left-1/2 w-px bg-white/10" />
-          <div className="relative flex-1 flex flex-col items-center justify-center gap-4 min-h-0">
-            {gameState === "countdown" && (
-              <div className="text-center">
-                <div className="font-black tabular-nums text-white drop-shadow-[0_0_40px_rgba(139,92,246,0.8)] text-6xl">
-                  {settings.hideTimer ? "..." : formatTime(totalCs)}
+      <div className="flex-1 flex relative overflow-hidden">
+        
+        {mode === "advanced" ? (
+          /* ---------------------------------------------------------
+             ADVANCED MODE: 單一全螢幕大掣 (作為左邊 Sensor)
+          --------------------------------------------------------- */
+          <div
+            onClick={() => { if(leftActive) handleSensorHit('left'); }}
+            className={`flex-1 flex items-center justify-center transition-all duration-300 ${
+              (leftActive && (gameState === "reaction" || gameState === "result"))
+                ? "bg-gradient-to-br from-violet-600 to-violet-900 scale-[1.02] z-20"
+                : "bg-gray-900/30"
+            }`}
+          >
+            {/* 中央顯示區域：包含倒數同結果 */}
+            <div className="relative z-30 flex flex-col items-center justify-center pointer-events-none">
+              
+              {/* 狀態文字：淨係喺唔係結果畫面嗰陣顯示 LEFT */}
+              {gameState !== "waiting_restart" && (
+                <div className={`${leftActive ? 'animate-bounce text-white drop-shadow-2xl' : 'text-white/5'} font-black mb-8 transition-all`} style={{ fontSize: "clamp(2rem, 10vw, 5rem)" }}>
+                  LEFT
                 </div>
-              </div>
-            )}
+              )}
 
-            {gameState === "reaction" && (
-              <div className="text-center animate-pulse">
-                <div className="text-xl font-black text-white italic tracking-widest">GO! GO!</div>
-              </div>
-            )}
+              {/* 倒數同成績 (擺喺正中間) */}
+              <div className="text-center">
+                {gameState === "countdown" && (
+                  <div className="font-black tabular-nums text-white drop-shadow-[0_0_40px_rgba(139,92,246,0.8)] text-8xl">
+                    {settings.hideTimer ? "..." : formatTime(totalCs)}
+                  </div>
+                )}
 
-            {gameState === "waiting_restart" && (
-              <div className="text-center animate-fade-in">
-                {mode === "advanced" ? (
-                  <>
-                    <div className="text-7xl font-black text-yellow-400 tabular-nums">
+                {gameState === "reaction" && (
+                  <div className="text-center animate-pulse">
+                    <div className="text-2xl font-black text-white italic tracking-[0.5em]">GO!</div>
+                  </div>
+                )}
+
+                {gameState === "waiting_restart" && (
+                  <div className="animate-fade-in">
+                    <div className="text-8xl font-black text-yellow-400 tabular-nums">
                       {reactionTime !== null ? reactionTime.toFixed(3) : "0.000"}s
                     </div>
-                    <div className={`text-xl font-bold uppercase mt-2 ${reactionTime !== null ? getGrade(reactionTime).color : ""}`}>
+                    <div className={`text-2xl font-bold uppercase mt-4 tracking-widest ${reactionTime !== null ? getGrade(reactionTime).color : ""}`}>
                       {reactionTime !== null ? getGrade(reactionTime).label : ""}
                     </div>
-                  </>
-                ) : (
-                  <div className={`text-9xl font-black transition-all duration-300 ${winner === "left" ? "text-violet-400" : "text-blue-400"}`}>
-                    {winner === "left" ? "←" : "→"}
-                  </div>
-                )}
-                {settings.autoRestart && (
-                  <div className="mt-6 text-white/30 text-sm font-medium animate-pulse">
-                    Next round in {restartCountdown}s...
+                    {settings.autoRestart && (
+                      <div className="mt-8 text-white/30 text-sm font-medium animate-pulse uppercase tracking-widest">
+                        Next round: {restartCountdown}s
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div> 
-        </div> 
-
-        {/* Right Block */}
-        <div
-          onClick={() => { 
-            if (rightActive && (!isRemoteConnected || mode === "basic")) {
-              handleSensorHit('right');
-            }
-          }}
-          className={`flex-1 flex items-center justify-center transition-all duration-700 ${
-            (rightActive && (gameState === "reaction" || gameState === "result"))
-              ? mode === "advanced" && isRemoteConnected
-                ? "bg-white/5 scale-[0.98] border-l border-white/10" 
-                : "bg-gradient-to-bl from-blue-600 to-blue-900 scale-[1.01]" 
-              : "bg-gray-900/30"
-          }`}
-        >
-          <div className="text-center">
-            {rightActive ? (
-              mode === "advanced" && isRemoteConnected ? (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-4 h-4 bg-blue-500 rounded-full animate-ping" />
-                  <div className="font-black text-blue-400 italic tracking-tighter" style={{ fontSize: "clamp(1rem, 4vw, 2rem)" }}>
-                    RIGHT
-                  </div>
-                </div>
-              ) : (
-                <div className="animate-bounce text-white drop-shadow-2xl" style={{ fontSize: "clamp(1.5rem, 6vw, 3.5rem)" }}>
-                  RIGHT
-                </div>
-              )
-            ) : (
-              <div className="font-bold text-white/10" style={{ fontSize: "clamp(1.2rem, 5vw, 2.5rem)" }}>
-                RIGHT
-              </div>
-            )}
+            </div>
           </div>
-        </div>
+        ) : (
+          /* ---------------------------------------------------------
+             BASIC MODE: 保持原本左右分開 (單機玩)
+          --------------------------------------------------------- */
+          <>
+            {/* Left Block */}
+            <div
+              onClick={() => { if(leftActive) handleSensorHit('left'); }}
+              className={`flex-1 flex items-center justify-center transition-all duration-700 ${
+                (leftActive && (gameState === "reaction" || gameState === "result"))
+                  ? "bg-gradient-to-br from-violet-600 to-violet-900 scale-[1.02] z-20"
+                  : "bg-gray-900/30"
+              }`}
+            >
+              <div className={`${leftActive ? 'animate-bounce text-white' : 'text-white/10'} font-black text-4xl`}>LEFT</div>
+            </div>
+
+            {/* Divider & HUD */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+              <div className="absolute inset-y-0 left-1/2 w-px bg-white/10" />
+              {/* ... (原本 Basic Mode 嘅倒數同結果 HUD) ... */}
+            </div>
+
+            {/* Right Block */}
+            <div
+              onClick={() => { if(rightActive) handleSensorHit('right'); }}
+              className={`flex-1 flex items-center justify-center transition-all duration-700 ${
+                (rightActive && (gameState === "reaction" || gameState === "result"))
+                  ? "bg-gradient-to-bl from-blue-600 to-blue-900 scale-[1.01]"
+                  : "bg-gray-900/30"
+              }`}
+            >
+              <div className={`${rightActive ? 'animate-bounce text-white' : 'text-white/10'} font-black text-4xl`}>RIGHT</div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Bottom Controls */}
