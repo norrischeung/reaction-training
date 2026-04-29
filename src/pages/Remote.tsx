@@ -45,9 +45,7 @@ export default function Remote() {
           if (navigator.vibrate) navigator.vibrate(200);
           // 安全機制：如果玩家 2 秒都唔撳，自動熄燈防止燒 Mon
           setTimeout(() => setIsFlashing(false), 10000);
-        } else {
-          //setIsFlashing(false); 
-        }
+        } 
       } else {
         setStatus("idle");
         alert("Room not found! Make sure Master is running.");
@@ -128,15 +126,24 @@ export default function Remote() {
               : "bg-violet-600 hover:bg-violet-500 text-white shadow-violet-950/20"
           }`}
         >
-          {status === "joining" ? "Connecting..." : "Join Training"}
+          {status === "joining" ? "Connecting..." : "Connect"}
         </button>
       </div>
 
-      <div className="mt-16 flex flex-col items-center gap-2 opacity-20">
-        <div className="w-1 h-8 bg-gradient-to-b from-violet-500 to-transparent" />
-        <p className="text-[9px] max-w-[200px] text-center uppercase leading-relaxed font-medium">
-          The remote device acts as the <span className="text-white font-bold">Right Side</span> sensor during Advanced training.
-        </p>
+      {/* --- 💡 切換按鈕擺呢度 --- */}
+      <div className="pt-8 flex flex-col items-center border-t border-white/5">
+        <button
+          onClick={() => {
+            window.location.href = window.location.origin;
+          }}
+          className="group flex items-center gap-3 px-6 py-3 hover:bg-white/5 rounded-2xl transition-all"
+        >
+          <div className="text-left">
+            <p className="text-[10px] font-black text-white/40 group-hover:text-white/80 uppercase tracking-widest transition-colors">
+              Switch to Master View
+            </p>
+          </div>
+        </button>
       </div>
     </div>
   );

@@ -284,7 +284,7 @@ export default function Game() {
     return `${String(secs).padStart(2, "0")}:${String(cents).padStart(2, "0")}`;
   };
  
-  
+  /*
   // Bluetooth-related states (for future use)
   const [isConnected, setIsConnected] = useState(false);
   const [bluetoothDevice, setBluetoothDevice] = useState<any>(null);
@@ -325,6 +325,7 @@ export default function Game() {
       console.error("Bluetooth Error:", error);
     }
   };
+  */
 
   //Effect starts the reaction timer when the countdown ends
   const getGrade = (time: number) => {
@@ -373,6 +374,7 @@ export default function Game() {
                       max-h-[80vh] overflow-y-auto custom-scrollbar"
             onClick={(e) => e.stopPropagation()}
           >
+            {/*
             <div className="flex justify-between mb-6 px-1">
               <h2 className="text-lg font-bold text-white/95 whitespace-nowrap tracking-tight">Advanced Settings</h2>
                 
@@ -394,6 +396,7 @@ export default function Game() {
                   </div>
                 </button>
             </div>
+             */}
 
             <div className="mb-6">
               <label className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-3 block">
@@ -657,7 +660,6 @@ export default function Game() {
           <>
             {/* Left Block */}
             <div
-              onClick={() => { if(leftActive) handleSensorHit('left'); }}
               className={`flex-1 flex items-center justify-center transition-all duration-700 ${
                 (leftActive && (gameState === "reaction" || gameState === "result"))
                   ? "bg-gradient-to-br from-violet-600 to-violet-900 scale-[1.02] z-20"
@@ -669,8 +671,40 @@ export default function Game() {
 
             {/* Divider & HUD */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+              {/* 中間分界線 */}
               <div className="absolute inset-y-0 left-1/2 w-px bg-white/10" />
-              {/* ... (原本 Basic Mode 嘅倒數同結果 HUD) ... */}
+
+              {/* HUD 內容 - 只保留倒數 */}
+              <div className="relative flex flex-col items-center">
+                
+                {/* 倒數計時器 (Countdown) */}
+                {gameState === "countdown" && (
+                  <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
+                    <div className="text-white/20 text-[10px] font-bold uppercase tracking-[0.4em] mb-4">
+                      Ready...
+                    </div>
+                    <div className="font-black tabular-nums text-white text-5xl drop-shadow-[0_0_30px_rgba(139,92,246,0.4)] tracking-tighter">
+                      {settings.hideTimer ? "..." : formatTime(totalCs)}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. 反應階段 (Reaction) —— 呢度可以選擇留空，或者只係顯示一個簡單嘅 "GO!" */}
+                {gameState === "reaction" && (
+                  <div className="animate-pulse">
+                    <div className="text-white/10 text-[10px] font-bold uppercase tracking-[1em]">
+                      Action
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. 閒置狀態 (Idle) */}
+                {gameState === "idle" && (
+                  <div className="opacity-10">
+                    <div className="w-1 h-12 bg-white/50 rounded-full" />
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Right Block */}
