@@ -218,13 +218,21 @@ export default function Game() {
     setRestartCountdown(0);
     setGameState("idle");
     setTotalCs(settings.countdownTime * 100);
+    
 
     // ✅ 同步重設 Firebase 狀態，讓手機端也回到等待畫面
-    update(ref(db, `rooms/${roomId}`), {
-      signal: false,
-      hitTime: 0,
-      status: "idle"
-    });
+    if (roomId) {
+      const roomRef = ref(db, `rooms/${roomId}`);
+      update(roomRef, {
+        signal: false,
+        hitTime: 0,
+        //status: "idle" // 如果你 Remote 冇聽 status，呢行可以唔使
+      }).then(() => {
+        console.log("Firebase Reset Successful");
+      }).catch(err => {
+        console.error("Firebase Reset Error:", err);
+      });
+    }
   };
 
   const handleSaveSettings = () => {
@@ -340,14 +348,7 @@ export default function Game() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => stopReactionTimer()}
-            className="p-2 text-[10px] text-white/10 hover:text-white/40 transition-colors uppercase font-bold"
-          >
-            Mock Hit
-          </button>
-          
+        <div className="flex items-center gap-2">         
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-95"
@@ -581,53 +582,72 @@ export default function Game() {
              ADVANCED MODE: 單一全螢幕大掣 (作為左邊 Sensor)
           --------------------------------------------------------- */
           <div
-            onClick={() => { if(leftActive) handleSensorHit('left'); }}
-            className={`flex-1 flex items-center justify-center transition-all duration-300 ${
-              (leftActive && (gameState === "reaction" || gameState === "result"))
-                ? "bg-gradient-to-br from-violet-600 to-violet-900 scale-[1.02] z-20"
-                : "bg-gray-900/30"
+            onPointerDown={(e) => { 
+              e.preventDefault();
+              if(leftActive && gameState === "reaction") handleSensorHit('left'); 
+            }}
+            className={`flex-1 flex items-center justify-center transition-colors duration-75 cursor-pointer relative overflow-hidden ${
+              leftActive && gameState === "reaction" 
+                ? "bg-white"  // 閃燈時變全白
+                : "bg-gray-950" // 平時深色
             }`}
           >
             {/* 中央顯示區域：包含倒數同結果 */}
-            <div className="relative z-30 flex flex-col items-center justify-center pointer-events-none">
-              
-              {/* 狀態文字：淨係喺唔係結果畫面嗰陣顯示 LEFT */}
-              {gameState !== "waiting_restart" && (
-                <div className={`${leftActive ? 'animate-bounce text-white drop-shadow-2xl' : 'text-white/5'} font-black mb-8 transition-all`} style={{ fontSize: "clamp(2rem, 10vw, 5rem)" }}>
-                  LEFT
-                </div>
-              )}
-
-              {/* 倒數同成績 (擺喺正中間) */}
-              <div className="text-center">
+            {leftActive && gameState === "reaction" ? (
+              <div className="flex flex-col items-center animate-pulse">
+                <span className="text-black font-black text-7xl italic tracking-tighter">HIT!</span>
+                <span className="text-black/40 text-[10px] font-bold mt-4 uppercase tracking-[0.3em]">Touch Screen</span>
+              </div>
+            ) : (
+              /* 2. 非閃燈狀態 */
+              <div className="flex flex-col items-center">
+                
+                {/* A. 倒數中 */}
                 {gameState === "countdown" && (
-                  <div className="font-black tabular-nums text-white drop-shadow-[0_0_40px_rgba(139,92,246,0.8)] text-8xl">
-                    {settings.hideTimer ? "..." : formatTime(totalCs)}
-                  </div>
-                )}
-
-                {gameState === "reaction" && (
-                  <div className="text-center animate-pulse">
-                    <div className="text-2xl font-black text-white italic tracking-[0.5em]">GO!</div>
-                  </div>
-                )}
-
-                {gameState === "waiting_restart" && (
-                  <div className="animate-fade-in">
-                    <div className="text-8xl font-black text-yellow-400 tabular-nums">
-                      {reactionTime !== null ? reactionTime.toFixed(3) : "0.000"}s
+                  <div className="text-center">
+                    <div className="text-white/20 text-[10px] font-bold uppercase tracking-[0.4em] mb-4">Ready...</div>
+                    <div className="font-black tabular-nums text-white text-7xl drop-shadow-[0_0_30px_rgba(139,92,246,0.4)]">
+                      {settings.hideTimer ? "..." : formatTime(totalCs)}
                     </div>
-                    <div className={`text-2xl font-bold uppercase mt-4 tracking-widest ${reactionTime !== null ? getGrade(reactionTime).color : ""}`}>
-                      {reactionTime !== null ? getGrade(reactionTime).label : ""}
+                  </div>
+                )}
+
+                {/* B. 顯示結果 (反應時間) */}
+                {gameState === "waiting_restart" && (
+                  <div className="flex flex-col items-center animate-fade-in">
+                    <div className="text-8xl font-black text-yellow-400 tabular-nums tracking-tighter">
+                      {reactionTime?.toFixed(3)}s
+                    </div>
+                    <div className={`text-xl font-black uppercase mt-2 tracking-[0.2em] ${getGrade(reactionTime || 0).color}`}>
+                      {getGrade(reactionTime || 0).label}
                     </div>
                     {settings.autoRestart && (
-                      <div className="mt-8 text-white/30 text-sm font-medium animate-pulse uppercase tracking-widest">
-                        Next round: {restartCountdown}s
-                      </div>
+                      <p className="text-white/20 text-[10px] mt-8 uppercase tracking-widest font-bold">
+                        Next in {restartCountdown}s
+                      </p>
                     )}
                   </div>
                 )}
+
+                {/* C. 平時等待狀態 */}
+                {(gameState === "idle" || (gameState === "reaction" && !leftActive)) && (
+                  <div className="text-center opacity-30">
+                    <div className="w-16 h-16 border border-violet-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <div className="w-8 h-8 bg-violet-500 rounded-full blur-xl animate-pulse" />
+                    </div>
+                    <p className="text-white font-bold tracking-[0.4em] text-[10px] uppercase">
+                      {gameState === "reaction" ? "Waiting for Remote" : "Master Sensor Active"}
+                    </p>
+                    <p className="text-white/50 text-[9px] mt-2 font-mono uppercase tracking-tighter">Room: {roomId}</p>
+                  </div>
+                )}
               </div>
+            )}
+
+            {/* 狀態標籤 (細細個喺角落，唔會遮位) */}
+            <div className="absolute top-6 left-6 flex items-center gap-2 opacity-40">
+              <div className={`w-2 h-2 rounded-full ${isRemoteConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className="text-[10px] font-bold text-white uppercase tracking-widest">Left Side</span>
             </div>
           </div>
         ) : (
@@ -679,7 +699,7 @@ export default function Game() {
             ) : isRemoteConnected ? (
               <button onClick={startGame} className="px-8 py-2.5 bg-white text-black rounded-full font-bold text-sm uppercase tracking-[0.2em] transition-all active:scale-95 shadow-lg">
                 START TRAINING
-              </button>
+              </button>    
             ) : (
               <div className="px-6 py-2 bg-black/40 border border-white/5 rounded-full backdrop-blur-sm">
                 <p className="text-white/30 text-[10px] font-bold uppercase tracking-[0.2em]">Waiting for Remote</p>

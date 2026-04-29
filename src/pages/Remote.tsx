@@ -38,15 +38,15 @@ export default function Remote() {
       if (data) {
         setIsJoined(true);
         setStatus("connected");
-
         // 如果 Master 發出 signal: true，手機就閃燈
         if (data.signal === true) {
           setIsFlashing(true);
           // 長震動提醒 (0.2秒)
           if (navigator.vibrate) navigator.vibrate(200);
-          
           // 安全機制：如果玩家 2 秒都唔撳，自動熄燈防止燒 Mon
-          setTimeout(() => setIsFlashing(false), 2000);
+          setTimeout(() => setIsFlashing(false), 10000);
+        } else {
+          //setIsFlashing(false); 
         }
       } else {
         setStatus("idle");
