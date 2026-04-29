@@ -128,6 +128,8 @@ export default function Game() {
     }, 1000);
   }, [settings.autoRestart, settings.restartDelay, startGame]);
 
+  const [restartProgress, setRestartProgress] = useState(100);
+
     // STEP 3: This runs the moment the 3, 2, 1 countdown ends
   const startReactionTimer = () => {
     setStartTime(Date.now()); // Record the "Go!" moment in ms
@@ -660,17 +662,17 @@ export default function Game() {
           <>
             {/* Left Block */}
             <div
-              className={`flex-1 flex items-center justify-center transition-all duration-700 ${
-                (leftActive && (gameState === "reaction" || gameState === "result"))
-                  ? "bg-gradient-to-br from-violet-600 to-violet-900 scale-[1.02] z-20"
-                  : "bg-gray-900/30"
+              className={`flex-1 flex items-center justify-center transition-all duration-150 ${
+                leftActive
+                  ? "bg-gradient-to-br bg-violet-500 scale-[1.02] z-10 opacity-100"
+                  : "bg-gray-900/30 opacity-100"
               }`}
             >
               <div className={`${leftActive ? 'animate-bounce text-white' : 'text-white/10'} font-black text-4xl`}>LEFT</div>
             </div>
 
             {/* Divider & HUD */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
               {/* 中間分界線 */}
               <div className="absolute inset-y-0 left-1/2 w-px bg-white/10" />
 
@@ -704,16 +706,33 @@ export default function Game() {
                     <div className="w-1 h-12 bg-white/50 rounded-full" />
                   </div>
                 )}
+
+                {/* ✅ 2. 只有在 Basic Mode 且等待重啟時顯示 (NEXT IN 03s) */}
+                {gameState === "waiting_restart" && settings.autoRestart && (
+                  <div className="flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {/* 紫色漸變發光文字 */}
+                    <div className="text-white-400 text-[10px] font-black uppercase tracking-[0.3em] mb-1">
+                      Next Round In
+                    </div>
+                    
+                    {/* 倒數數字 */}
+                    <div className="flex items-baseline gap-1">
+                      <span className="font-black tabular-nums text-white text-6xl italic drop-shadow-[0_0_20px_rgba(139,92,246,0.5)]">
+                        {restartCountdown}
+                      </span>
+                      <span className="text-white/40 font-bold text-sm uppercase">s</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Right Block */}
             <div
-              onClick={() => { if(rightActive) handleSensorHit('right'); }}
-              className={`flex-1 flex items-center justify-center transition-all duration-700 ${
-                (rightActive && (gameState === "reaction" || gameState === "result"))
-                  ? "bg-gradient-to-bl from-blue-600 to-blue-900 scale-[1.01]"
-                  : "bg-gray-900/30"
+              className={`flex-1 flex items-center justify-center transition-all duration-150 ${
+                rightActive
+                  ? "bg-gradient-to-br bg-blue-500 scale-[1.02] z-10 opacity-100"
+                  : "bg-gray-900/30 opacity-100"
               }`}
             >
               <div className={`${rightActive ? 'animate-bounce text-white' : 'text-white/10'} font-black text-4xl`}>RIGHT</div>
