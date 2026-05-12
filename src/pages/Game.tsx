@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ref, onValue, set, update } from "firebase/database";
 import { db } from "./firebase";
+import { SettingsIcon } from "lucide-react";
 
 type GameState = "idle" | "countdown" | "result" | "reaction" | "waiting_restart" | "remote_control";
 type mode = "basic" | "advanced";
@@ -369,17 +370,11 @@ export default function Game() {
       <div className="flex items-center justify-between px-6 py-4 z-10 relative bg-gray-950/50 backdrop-blur-md border-b border-white/5">
         <div className="flex items-center gap-3">
           <h1 className="text-xl font-black tracking-tighter text-white">
-            REACTION<span className="text-violet-500">PRO</span>
+            TARGET<span className="text-violet-500">PULSAR</span>
           </h1>
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/40 uppercase tracking-widest">
             {mode}
           </span>
-         {/* 1. 離線提示 (擺喺最上面，z-index 已經設為 100) */}
-          {!isOnline && (
-            <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500/50 text-white text-[10px] px-3 py-1 rounded-full z-[100] backdrop-blur-sm animate-in fade-in slide-in-from-top-2">
-              Offline Mode - Basic Only
-            </div>
-          )}
         </div>
 
         <div className="flex items-center gap-2">         
@@ -387,8 +382,13 @@ export default function Game() {
             onClick={() => setShowSettings(!showSettings)}
             className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-95"
           >
-            <span className="text-xs font-bold uppercase tracking-wider">Settings</span>
-            <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+            <SettingsIcon className="w-6 h-6 text-white/70" />
+            {/* Connection status indicator */}
+            <div className={`w-2 h-2 rounded-full transition-colors duration-500 ${
+              isOnline 
+                ? 'bg-violet-500'           // 正常連線：紫色
+                : 'bg-red-600 animate-pulse ' // 斷網：紅色 + 呼吸燈效果
+            }`} />
           </button>
         </div>
       </div>
