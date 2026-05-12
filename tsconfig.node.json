@@ -3,8 +3,10 @@
     "composite": true,
     "skipLibCheck": true,
     "module": "ESNext",
-    "moduleResolution": "Node",
-    "allowSyntheticDefaultImports": true
+    "moduleResolution": "Bundler",
+    "allowSyntheticDefaultImports": true,
+    /* ✅ 移除 allowImportingTsExtensions，因為這裡不需要 */
+    /* ✅ 確保沒有 noEmit: true */
   },
   "include": ["vite.config.ts"]
 }

@@ -40,6 +40,31 @@ export default function Game() {
     randomMax: "10",
   });
 
+  //handle offline
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    // 如果斷網，且當前是 Advanced Mode，自動跳回 Basic
+    if (!isOnline && mode === 'advanced') {
+      setMode('basic');
+      // 可以加個 toast 提示
+      console.log("Offline detected: Switched to Basic Mode");
+    }
+  }, [isOnline, mode]);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   // --- Firebase & Remote States ---
   const [roomId] = useState(Math.random().toString(36).substring(2, 8).toUpperCase());
   const [isRemoteConnected, setIsRemoteConnected] = useState(false);
@@ -331,9 +356,9 @@ export default function Game() {
 
   //Effect starts the reaction timer when the countdown ends
   const getGrade = (time: number) => {
-    if (time < 0.30) return { label: "ELITE ⚡", color: "text-yellow-400" };
-    if (time < 0.50) return { label: "PRO 🏸", color: "text-green-400" };
-    if (time < 0.80) return { label: "GOOD 👍", color: "text-blue-400" };
+    if (time < 0.50) return { label: "ELITE ⚡", color: "text-yellow-400" };
+    if (time < 1.00) return { label: "PRO 🏸", color: "text-green-400" };
+    if (time < 1.50) return { label: "GOOD 👍", color: "text-blue-400" };
     return { label: "KEEP TRAINING!", color: "text-gray-400" };
   };
 
@@ -349,6 +374,12 @@ export default function Game() {
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/40 uppercase tracking-widest">
             {mode}
           </span>
+         {/* 1. 離線提示 (擺喺最上面，z-index 已經設為 100) */}
+          {!isOnline && (
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500/50 text-white text-[10px] px-3 py-1 rounded-full z-[100] backdrop-blur-sm animate-in fade-in slide-in-from-top-2">
+              Offline Mode - Basic Only
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">         
@@ -414,12 +445,23 @@ export default function Game() {
                   BASIC
                 </button>
                 <button
+                  disabled={!isOnline}
                   onClick={() => { handleRestart(); setMode("advanced"); }}
-                  className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${
-                    mode === "advanced" ? "bg-violet-600 text-white shadow-lg shadow-violet-900/20" : "text-white/30 hover:text-white/60"
-                  }`}
+                  className={`relative flex-1 py-2 text-xs font-black rounded-lg transition-all ${
+                    mode === "advanced" 
+                      ? "bg-violet-600 text-white shadow-lg shadow-violet-900/20" 
+                      : "text-white/30 hover:text-white/60"
+                  } ${!isOnline ? 'opacity-30 cursor-not-allowed' : 'active:scale-95'}`}
                 >
-                  ADVANCED
+                  <span className={!isOnline ? 'blur-[1px]' : ''}>Advanced</span>
+                  {/* 離線時的小鎖頭或提示 */}
+                  {!isOnline && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-[10px] bg-black/60 px-2 py-0.5 rounded text-red-400 font-black">
+                        WIFI REQUIRED
+                      </span>
+                    </div>
+                  )}
                 </button>
               </div>
             </div>
