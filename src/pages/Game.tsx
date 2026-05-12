@@ -3,7 +3,7 @@ import { ref, onValue, set, update } from "firebase/database";
 import { db } from "./firebase";
 import { SettingsIcon } from "lucide-react";
 
-type GameState = "idle" | "countdown" | "result" | "reaction" | "waiting_restart" | "remote_control";
+type GameState = "idle" | "countdown" | "reaction" | "waiting_restart" | "remote_control";
 type mode = "basic" | "advanced";
 
 interface Settings {
@@ -14,6 +14,7 @@ interface Settings {
   randomTime: boolean;
   randomMin: number;
   randomMax: number;
+  directionMode: number; // 0: Both, 1: Left only, 2: Random each round
 }
 
 export default function Game() {
@@ -22,13 +23,14 @@ export default function Game() {
   const [mode, setMode] = useState<mode>("basic");
   const [gameState, setGameState] = useState<GameState>("idle");
   const [totalCs, setTotalCs] = useState(500);
-  const [winner, setWinner] = useState<"left" | "right" | null>(null);
+  const [activeTarget, setActiveTarget] = useState<number | null>(null);
   const [restartCountdown, setRestartCountdown] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<Settings>({
     countdownTime: 5,
     autoRestart: false,
     restartDelay: 3,
+    directionMode: 2,
     hideTimer: false,
     randomTime: false,
     randomMin: 3,
@@ -88,7 +90,7 @@ export default function Game() {
     clearTimers();
     setLeftActive(false);
     setRightActive(false);
-    setWinner(null);
+    setActiveTarget(null);
     setStartTime(0);
     
     let seconds = settings.countdownTime;
@@ -107,14 +109,15 @@ export default function Game() {
       setTotalCs(remaining);
       if (remaining <= 0) {
         clearInterval(countdownRef.current!);
-        const chosen = Math.random() < 0.5 ? "left" : "right";
-        setWinner(chosen);
+        const nextIndex = Math.floor(Math.random() * settings.directionMode);
+        setActiveTarget(nextIndex);
 
         if (mode === "advanced") {
           setStartTime(Date.now());
           setGameState("reaction");
           
-          if (chosen === "left") {
+          //Picked Left
+          if (nextIndex % 2 === 0) {
             setLeftActive(true);
             setRightActive(false);
           } else {
@@ -128,14 +131,26 @@ export default function Game() {
             });
           } 
         } else {
-          setLeftActive(chosen === "left");
-          setRightActive(chosen === "right");
+          setLeftActive(nextIndex % 2 === 0);
+          setRightActive(nextIndex % 2 === 1);
           setGameState("waiting_restart");
           if (settings.autoRestart) triggerAutoRestart();
         }
       }
     }, 10);
   }, [settings, clearTimers, mode, roomId]);
+
+  const getDirectionInfo = (idx: number) => {
+    const mapping: Record<number, { label: string, arrow: string }> = {
+      0: { label: "NET",  arrow: "↖" }, // 或用 "↑"
+      1: { label: "NET",  arrow: "↗" }, // 或用 "↑"
+      2: { label: "MID",  arrow: "←" },
+      3: { label: "MID",  arrow: "→" },
+      4: { label: "BACK", arrow: "↙" }, // 或用 "↓"
+      5: { label: "BACK", arrow: "↘" }, // 或用 "↓"
+    };
+    return mapping[idx] || { label: "", arrow: "" };
+  };
 
   // --- Timer & Auto Restart ---
   const triggerAutoRestart = useCallback(() => {
@@ -156,12 +171,6 @@ export default function Game() {
 
   const [restartProgress, setRestartProgress] = useState(100);
 
-    // STEP 3: This runs the moment the 3, 2, 1 countdown ends
-  const startReactionTimer = () => {
-    setStartTime(Date.now()); // Record the "Go!" moment in ms
-    setGameState("result");   // Or whatever your 'playing' state is named
-  };
-
   //Function for the Mock Button & Bluetooth
   const stopReactionTimer = (manualEndTime?: number) => {
     const endTime = manualEndTime || Date.now();
@@ -177,7 +186,7 @@ export default function Game() {
       // 2. Turn off the colors/highlights immediately
       setLeftActive(false);
       setRightActive(false);
-      setWinner(null);
+      setActiveTarget(null);
 
       // 3. Move to the summary state
       setGameState("waiting_restart");
@@ -239,7 +248,7 @@ export default function Game() {
 
   const handleRestart = () => {
     clearTimers();
-    setWinner(null);
+    setActiveTarget(null);
     setLeftActive(false);
     setRightActive(false);
     setStartTime(0);
@@ -370,14 +379,7 @@ export default function Game() {
       <header className="fixed top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] bg-gray-950/50 backdrop-blur-md border-b border-white/5">
         <div className="flex items-center justify-between px-6 h-16 relative">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              {/* 這裡就是你之前說的點點，我加入了顏色切換邏輯 */}
-              <div className={`w-2 h-2 rounded-full transition-all duration-500 ${
-                isOnline 
-                  ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.5)]' 
-                  : 'bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.8)] animate-pulse'
-              }`} />
-              
+            <div className="flex items-center gap-2">             
               <h1 className="text-xl font-black tracking-tighter text-white">
                 TARGET<span className="text-violet-500">PULSAR</span>
               </h1>
@@ -404,6 +406,9 @@ export default function Game() {
           </div>
         </div>
       </header>
+
+      {/* ⚠️ 重要：因為 Header 變成了 fixed，你需要給後面的內容加一個墊片，防止內容被 Header 擋住 */}
+      <div className="h-[calc(64px+env(safe-area-inset-top))]" />
 
       {/* Setting Panel */}
       {showSettings && (
@@ -715,14 +720,51 @@ export default function Game() {
           --------------------------------------------------------- */
           <>
             {/* Left Block */}
-            <div
-              className={`flex-1 flex items-center justify-center transition-all duration-150 ${
-                leftActive
-                  ? "bg-gradient-to-br bg-violet-500 scale-[1.02] z-10 opacity-100"
-                  : "bg-gray-900/30 opacity-100"
-              }`}
-            >
-              <div className={`${leftActive ? 'animate-bounce text-white' : 'text-white/10'} font-black text-4xl`}>LEFT</div>
+            <div className="flex-1 flex flex-col transition-all relative overflow-hidden bg-gray-900/30">
+              
+              {/* 6 區模式橫向分隔線 (只有在沒亮起時顯示，保持畫面乾淨) */}
+              {settings.directionMode === 6 && (
+                <div className="absolute inset-0 flex flex-col pointer-events-none opacity-20">
+                  <div className="flex-1 border-b border-white" />
+                  <div className="flex-1 border-b border-white" />
+                  <div className="flex-1" />
+                </div>
+              )}
+
+              <div className="flex-1 flex flex-col h-full relative z-20 min-h-0">
+                {[0, 2, 4].map((idx) => {
+                  // 核心修改：判斷這一格是不是目標，且現在是否處於顯示結果/反應的狀態
+                  const { label, arrow } = getDirectionInfo(idx);
+
+                  const isThisPointActive = gameState === "waiting_restart" && (
+                    settings.directionMode === 6 
+                      ? activeTarget === idx   // 6 區模式：精準亮起那一格 (0, 2, 或 4)
+                      : leftActive             // 2 區模式：只要左邊中獎，0, 2, 4 三格全亮
+                  );
+
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`flex-1 flex flex-col items-center justify-center transition-all duration-75 ${
+                        isThisPointActive ? "bg-sky-400 scale-[1.02] z-10" : "bg-transparent"
+                      }`}
+                    >
+                      <div className={`flex flex-col items-center w-full transition-all duration-75 ${
+                        isThisPointActive ? 'animate-bounce text-white' : 'text-white/20'
+                      } ${settings.directionMode === 2 && idx !== 2 ? 'hidden' : ''}`}>
+                        {/* 2 區模式顯示中間 (idx 3)，畫面最平衡 */}
+                        {settings.directionMode === 6 && (
+                          <span className="text-2xl leading-none mb-1 font-light">{arrow}</span>
+                        )}
+                        {/* 文字 */}
+                        <span className="font-black text-2xl tracking-tighter">
+                          {settings.directionMode === 6 ? label : "← LEFT"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Divider & HUD */}
@@ -782,59 +824,141 @@ export default function Game() {
             </div>
 
             {/* Right Block */}
-            <div
-              className={`flex-1 flex items-center justify-center transition-all duration-150 ${
-                rightActive
-                  ? "bg-gradient-to-br bg-blue-500 scale-[1.02] z-10 opacity-100"
-                  : "bg-gray-900/30 opacity-100"
-              }`}
-            >
-              <div className={`${rightActive ? 'animate-bounce text-white' : 'text-white/10'} font-black text-4xl`}>RIGHT</div>
+            <div className="flex-1 flex flex-col transition-all duration-75 relative overflow-hidden bg-gray-900/30">
+              
+              {/* 6 區模式橫向分隔線 (僅在未選中時微弱顯示) */}
+              {settings.directionMode === 6 && (
+                <div className="absolute inset-0 flex flex-col pointer-events-none opacity-20">
+                  <div className="flex-1 border-b border-white" />
+                  <div className="flex-1 border-b border-white" />
+                  <div className="flex-1" />
+                </div>
+              )}
+
+              <div className="flex-1 flex flex-col h-full relative z-20">
+                {[1, 3, 5].map((idx) => {
+                  // 1. 獲取當前格子的文字與箭頭
+                  const { label, arrow } = getDirectionInfo(idx);
+
+                  // 2. 判斷亮起邏輯
+                  const isThisPointActive = gameState === "waiting_restart" && (
+                    settings.directionMode === 6 
+                      ? activeTarget === idx   // 6 區：精準選中
+                      : rightActive            // 2 區：只要右邊中獎就全亮
+                  );
+
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`flex-1 flex flex-col items-center justify-center transition-all duration-75 ${
+                        isThisPointActive ? "bg-sky-400" : "bg-transparent"
+                      }`}
+                    >
+                      {/* 文字與箭頭容器 */}
+                      <div className={`flex flex-col items-center w-full transition-all duration-75 ${
+                        isThisPointActive ? 'animate-bounce text-white' : 'text-white/20'
+                      } ${settings.directionMode === 2 && idx !== 3 ? 'hidden' : ''}`}>
+                        
+                        {/* 箭頭 (僅 6 區顯示) */}
+                        {settings.directionMode === 6 && (
+                          <span className="text-2xl leading-none mb-1 font-light">{arrow}</span>
+                        )}
+                        
+                        {/* 方位文字 */}
+                        <span className="font-black text-2xl tracking-tighter">
+                          {settings.directionMode === 6 ? label : "RIGHT →"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </>
         )}
       </div>
 
       {/* Bottom Controls */}
-      <div className="flex items-center justify-center gap-3 py-6">
-        {gameState === "idle" && (
-          <div className="pointer-events-auto">
-            {mode === "basic" ? (
-              <button onClick={startGame} className="px-8 py-2.5 bg-violet-600 rounded-full font-bold text-sm text-white uppercase tracking-[0.2em] transition-all active:scale-95 border border-white/10">
-                START
+      <footer className={`fixed bottom-0 left-0 right-0 z-40 bg-gray-950/80 backdrop-blur-xl border-t border-white/5 pb-[env(safe-area-inset-bottom)] transition-opacity duration-300 ${
+          gameState === "countdown" ? 'opacity-20' : 'opacity-100'
+        }`}
+      >
+        {/* 使用 h-20 並用 flex items-center 確保所有子元素垂直居中 */}
+        <div className="flex items-center justify-between px-6 h-20 relative">
+          
+          {/* 1. 左邊區域 (固定寬度 w-24) */}
+          <div className="w-24 flex items-center justify-start">
+            {mode === 'basic' && gameState === "idle" && (
+              <button
+                onClick={() => setSettings(prev => ({ ...prev, directionMode: prev.directionMode === 2 ? 6 : 2 }))}
+                className="flex flex-col items-center gap-1 group active:scale-90 transition-transform"
+              >
+                <div className="grid grid-cols-2 gap-0.5 p-1 border border-white/10 rounded bg-white/5">
+                  {[...Array(settings.directionMode === 2 ? 2 : 6)].map((_, i) => (
+                    <div key={i} className="w-1.5 h-1.5 bg-violet-500 rounded-sm" />
+                  ))}
+                </div>
+                <span className="text-[9px] font-black text-white/40 group-active:text-violet-400 whitespace-nowrap">
+                  {settings.directionMode} POINTS
+                </span>
               </button>
-            ) : isRemoteConnected ? (
-              <button onClick={startGame} className="px-8 py-2.5 bg-white text-black rounded-full font-bold text-sm uppercase tracking-[0.2em] transition-all active:scale-95 shadow-lg">
-                START TRAINING
-              </button>    
-            ) : (
-              <div className="px-6 py-2 bg-black/40 border border-white/5 rounded-full backdrop-blur-sm">
-                <p className="text-white/30 text-[10px] font-bold uppercase tracking-[0.2em]">Waiting for Remote</p>
+            )}
+          </div>
+
+          {/* 2. 中間區域 (Start 按鈕) */}
+          <div className="flex-1 flex items-center justify-center">
+            {gameState === "idle" && (
+              <div className="pointer-events-auto">
+                {mode === "basic" ? (
+                  <button 
+                    onClick={startGame} 
+                    className="flex items-center gap-2 px-8 py-3 bg-violet-600 hover:bg-violet-500 active:scale-95 text-white rounded-full font-black text-sm transition-all shadow-[0_0_20px_rgba(139,92,246,0.3)]"
+                  >
+                    START
+                  </button>
+                ) : isRemoteConnected ? (
+                  <button onClick={startGame} className="px-8 py-3 bg-white hover:bg-white/50 active:scale-95 text-black rounded-full font-bold text-sm uppercase tracking-widest transition-all shadow-lg">
+                    START TRAINING
+                  </button>    
+                ) : (
+                  <div className="px-6 py-2 bg-black/40 border border-white/5 rounded-full backdrop-blur-sm">
+                    <p className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Waiting for Remote</p>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
 
-        {(gameState === "countdown" || gameState === "reaction") && (
-          <button onClick={handleRestart} className="h-12 min-w-[140px] px-8 bg-white/10 hover:bg-white/20 active:scale-95 transition-all rounded-full font-bold text-sm border border-white/10">
-            Cancel
-          </button>
-        )}
-
-        {gameState === "waiting_restart" && (
-          <div className="flex flex-col items-center gap-4">
-            {settings.autoRestart ? (
-              <button onClick={handleRestart} className="h-12 min-w-[140px] px-8 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-full font-bold text-sm border border-red-500/20">
-                Stop Training
+            {(gameState === "countdown" || gameState === "reaction") && (
+              <button 
+                onClick={handleRestart} 
+                className="px-8 py-3 bg-white/10 hover:bg-white/20 active:scale-95 transition-all rounded-full font-bold text-sm border border-white/10 text-white"
+              >
+                Cancel
               </button>
-            ) : (
-              <button onClick={startGame} className="h-12 min-w-[140px] px-8 bg-violet-600 hover:bg-violet-500 active:scale-95 rounded-full font-bold text-sm shadow-lg shadow-violet-900/40">
-                Play Again
+            )}
+
+            {gameState === "waiting_restart" && (
+              <button 
+                onClick={settings.autoRestart ? handleRestart : startGame} 
+                className={`px-8 py-3 rounded-full font-bold text-sm transition-all ${
+                  settings.autoRestart ? 'bg-red-500/20 text-red-400 border border-red-500/20' : 'bg-violet-600 text-white shadow-lg'
+                }`}
+              >
+                {settings.autoRestart ? 'Stop Training' : 'Play Again'}
               </button>
             )}
           </div>
-        )}
-      </div> 
+
+          {/* 3. 右邊區域 (固定寬度 w-24，用來平衡視覺) */}
+          <div className="w-24 flex items-center justify-end">
+            {/* 這裡可以放 Setting 按鈕或保持空白 */}
+          </div>
+
+        </div>
+      </footer>
+
+      {/* 墊片：同樣要在內容最下面加個墊片，避免內容被 Footer 擋住 */}
+      <div className="h-[calc(64px+env(safe-area-inset-bottom))]" />
 
       <style>{`
         @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
