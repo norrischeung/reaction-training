@@ -367,31 +367,43 @@ export default function Game() {
     <div className="h-[100dvh] w-screen flex flex-col bg-gray-950 text-white select-none overflow-hidden" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
       
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 z-10 relative bg-gray-950/50 backdrop-blur-md border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-black tracking-tighter text-white">
-            TARGET<span className="text-violet-500">PULSAR</span>
-          </h1>
-          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/40 uppercase tracking-widest">
-            {mode}
-          </span>
-        </div>
+      <header className="fixed top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] bg-gray-950/50 backdrop-blur-md border-b border-white/5">
+        <div className="flex items-center justify-between px-6 h-16 relative">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {/* 這裡就是你之前說的點點，我加入了顏色切換邏輯 */}
+              <div className={`w-2 h-2 rounded-full transition-all duration-500 ${
+                isOnline 
+                  ? 'bg-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.5)]' 
+                  : 'bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.8)] animate-pulse'
+              }`} />
+              
+              <h1 className="text-xl font-black tracking-tighter text-white">
+                TARGET<span className="text-violet-500">PULSAR</span>
+              </h1>
+            </div>
+            
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-white/40 uppercase tracking-widest">
+              {mode}
+            </span>
+          </div>
 
-        <div className="flex items-center gap-2">         
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-95"
-          >
-            <SettingsIcon className="w-6 h-6 text-white/70" />
-            {/* Connection status indicator */}
-            <div className={`w-2 h-2 rounded-full transition-colors duration-500 ${
-              isOnline 
-                ? 'bg-violet-500'           // 正常連線：紫色
-                : 'bg-red-600 animate-pulse ' // 斷網：紅色 + 呼吸燈效果
-            }`} />
-          </button>
+          <div className="flex items-center gap-2">         
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-95"
+            >
+              <SettingsIcon className="w-6 h-6 text-white/70" />
+              {/* Connection status indicator */}
+              <div className={`w-2 h-2 rounded-full transition-colors duration-500 ${
+                isOnline 
+                  ? 'bg-violet-500'           // 正常連線：紫色
+                  : 'bg-red-600 animate-pulse ' // 斷網：紅色 + 呼吸燈效果
+              }`} />
+            </button>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Setting Panel */}
       {showSettings && (
