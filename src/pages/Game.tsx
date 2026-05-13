@@ -917,7 +917,7 @@ export default function Game() {
                     START
                   </button>
                 ) : isRemoteConnected ? (
-                  <button onClick={startGame} className="px-8 py-3 bg-white hover:bg-white/50 active:scale-95 text-black rounded-full font-bold text-sm uppercase tracking-widest transition-all shadow-lg">
+                  <button onClick={startGame} className="px-8 py-3 bg-white hover:bg-white/50 active:scale-95 text-black rounded-full font-bold text-sm uppercase tracking-widest transition-all shadow-lg whitespace-nowrap">
                     START TRAINING
                   </button>    
                 ) : (

@@ -97,13 +97,10 @@ export default function Remote() {
   return (
     <div className="h-[100dvh] w-screen bg-gray-950 flex flex-col items-center justify-center p-8 text-white select-none">
       <div className="mb-12 text-center">
-        <div className="w-16 h-16 bg-violet-600/20 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-violet-500/30">
-          <div className="w-2 h-2 bg-violet-500 rounded-full animate-ping" />
-        </div>
         <h1 className="text-3xl font-black italic tracking-tighter">
-          REMOTE<span className="text-violet-500">SATELLITE</span>
+          TARGET<span className="text-violet-500">PULSAR</span>
         </h1>
-        <p className="text-white/30 text-[10px] uppercase tracking-widest mt-2 font-bold">ReactionPro Extension</p>
+        <p className="text-white/30 text-[10px] uppercase tracking-widest mt-2 font-bold">Remote Mode</p>
       </div>
 
       <div className="w-full max-w-xs space-y-4">
@@ -113,7 +110,7 @@ export default function Remote() {
             placeholder="ENTER ROOM ID"
             value={inputRoomId}
             onChange={(e) => setInputRoomId(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-5 text-center text-2xl font-mono focus:border-violet-500 focus:bg-white/10 outline-none transition-all placeholder:text-white/10"
+            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-5 text-center text-2xl font-mono focus:border-violet-500 focus:bg-white/10 outline-none transition-all placeholder:text-white/10 uppercase"
           />
         </div>
         
